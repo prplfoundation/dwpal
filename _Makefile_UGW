@@ -60,7 +60,7 @@ IFX_LDFLAGS += -L$(LIBNL_DIR)/lib/.libs -lnl-3
 #### Target Rules ###############################
 define Build/Compile
 	$(MAKE) $(TARGET_CONFIGURE_OPTS) -C $(PKG_BUILD_DIR) \
-		IFX_CFLAGS="$(IFX_CFLAGS)" IFX_LDFLAGS="$(IFX_LDFLAGS)"
+		IFX_CFLAGS="$(IFX_CFLAGS)" IFX_LDFLAGS="$(IFX_LDFLAGS)" IWLWAV_HOSTAP_DIR="$(IWLWAV_HOSTAP_DIR)" IWLWAV_IW_DIR="$(IWLWAV_IW_DIR)"
 endef
 
 # To ipkg / Rootfs

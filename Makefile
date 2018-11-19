@@ -1,8 +1,8 @@
 # fapi_wlan source Makefile
 
 PKG_NAME := dwpal
-IWLWAV_HOSTAP_DIR := ../iwlwav-hostap-2.6
-IWLWAV_IW_DIR := ../iwlwav-iw-4.14
+#IWLWAV_HOSTAP_DIR := ../iwlwav-hostap-2.6
+#IWLWAV_IW_DIR := ../iwlwav-iw-4.14
 
 opt_no_flags := -Werror -Wcast-qual
 
