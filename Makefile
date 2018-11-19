@@ -14,7 +14,7 @@ libdwpal.so_cflags  := -I./include -I$(IWLWAV_HOSTAP_DIR)/src/common/ -I$(IWLWAV
 libdwpal.so_ldflags := -L./ -L$(STAGING_DIR)/opt/lantiq/lib/ -lsafec-1.0 -lnl-genl-3
 
 dwpal_debug_cli_sources := $(IWLWAV_HOSTAP_DIR)/src/common/wpa_ctrl.c $(IWLWAV_HOSTAP_DIR)/src/utils/os_unix.c dwpal_debug_cli.c
-dwpal_debug_cli_ldflags := -L./ -ldwpal -ldl -lhelper -lcurses -lreadline -lrt -L$(STAGING_DIR)/usr/sbin/ -lsafec-1.0 -lpthread
+dwpal_debug_cli_ldflags := -L./ -ldwpal -ldl -lcurses -lreadline -lrt -L$(STAGING_DIR)/usr/sbin/ -lsafec-1.0 -lpthread
 dwpal_debug_cli_cflags  := -I./include -I$(IWLWAV_HOSTAP_DIR)/src/common/ -I$(IWLWAV_HOSTAP_DIR)/src/utils/ -DCONFIG_CTRL_IFACE -DCONFIG_CTRL_IFACE_UNIX -I$(STAGING_DIR)/usr/include/ -I$(IWLWAV_HOSTAP_DIR)/src/drivers/ -I$(IWLWAV_IW_DIR)
 
 include make.inc
