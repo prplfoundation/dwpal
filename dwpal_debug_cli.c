@@ -486,6 +486,14 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t numOfArrayArgs, s
 					}
 					break;
 
+				case DWPAL_UNSIGNED_CHAR_PARAM:
+					if (*(fieldsToParse[i].numOfValidArgs) > 0)
+					{
+						isValid = true;
+						printf("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((unsigned char *)field));
+					}
+					break;
+
 				case DWPAL_SHORT_INT_PARAM:
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{

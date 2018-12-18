@@ -832,6 +832,11 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					//printf("%s; DWPAL_CHAR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
+				case DWPAL_UNSIGNED_CHAR_PARAM:
+					sizeOfStruct += sizeof(unsigned char);
+					//printf("%s; DWPAL_UNSIGNED_CHAR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					break;
+
 				case DWPAL_SHORT_INT_PARAM:
 					sizeOfStruct += sizeof(short int);
 					//printf("%s; DWPAL_SHORT_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
@@ -1075,6 +1080,42 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 							}
 
 							*(char *)field = 0;
+							isMissingParam = true;
+						}
+					}
+					else
+					{
+						isMissingParam = true;
+					}
+					break;
+
+				case DWPAL_UNSIGNED_CHAR_PARAM:
+					if (isEndFieldNameAllocated == false)
+					{
+						ret = DWPAL_FAILURE;
+						break;
+					}
+
+					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					{
+						if (strncmp(stringOfValues, "UNKNOWN", 8))
+						{
+							if (fieldsToParse[i].numOfValidArgs != NULL)
+							{
+								(*(fieldsToParse[i].numOfValidArgs))++;
+							}
+
+							*(unsigned char *)field = (unsigned char)atoi(stringOfValues);
+						}
+						else
+						{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
+							if (fieldsToParse[i].numOfValidArgs != NULL)
+							{
+								*(fieldsToParse[i].numOfValidArgs) = 0;
+							}
+
+							*(unsigned char *)field = 0;
 							isMissingParam = true;
 						}
 					}
@@ -1374,6 +1415,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 						break;
 
 					case DWPAL_CHAR_PARAM:
+					case DWPAL_UNSIGNED_CHAR_PARAM:
 					case DWPAL_SHORT_INT_PARAM:
 					case DWPAL_LONG_LONG_INT_PARAM:
 					case DWPAL_INT_ARRAY_PARAM:

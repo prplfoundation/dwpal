@@ -41,6 +41,7 @@ typedef enum
 	DWPAL_STR_PARAM = 0,
 	DWPAL_STR_ARRAY_PARAM,  /* Note: the output param for this type MUST be an array of strings with a length of HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH, i.e. "char non_pref_chan[32][HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH];" */
 	DWPAL_CHAR_PARAM,
+	DWPAL_UNSIGNED_CHAR_PARAM,
 	DWPAL_SHORT_INT_PARAM,
 	DWPAL_INT_PARAM,
 	DWPAL_LONG_LONG_INT_PARAM,
