@@ -1660,7 +1660,7 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 	DWPAL_Context *localContext;
 	char          wpaCtrlName[DWPAL_WPA_CTRL_STRING_LENGTH];
 
-	printf("%s; radioName= '%s', wpaCtrlEventCallback= 0x%x\n", __FUNCTION__, radioName, (unsigned int)wpaCtrlEventCallback);
+	//printf("%s; radioName= '%s', wpaCtrlEventCallback= 0x%x\n", __FUNCTION__, radioName, (unsigned int)wpaCtrlEventCallback);
 
 	if (context == NULL)
 	{
@@ -1718,7 +1718,7 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 			strcpy_s(localContext->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "\0");
 			strcpy_s(localContext->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "\0");
 
-			printf("%s; radio interface '%s' not present ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+			//printf("%s; radio interface '%s' not present ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
 			return DWPAL_FAILURE;
 		}
 	}

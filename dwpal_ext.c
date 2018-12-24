@@ -23,7 +23,8 @@ typedef struct
 	char                        *radioName;
 	char                        *serviceName;
 	int                         fd;
-	bool                        isRecoveryNeeded;
+	bool                        isConnectionEstablishNeeded;
+	bool                        isInterfaceEnabled;
 	DwpalExtHostapEventCallback hostapEventCallback;
 	DwpalExtNlEventCallback     nlEventCallback;
 } DwpalService;
@@ -71,6 +72,8 @@ static void interfaceExistCheckAndRecover(void)
 
 	for (i=0; i < numOfServices; i++)
 	{
+		dwpalService[i].isConnectionEstablishNeeded = false;
+
 		if (!strncmp(dwpalService[i].interfaceType, "hostap", 7))
 		{
 			if (dwpalService[i].fd > 0)
@@ -85,25 +88,29 @@ static void interfaceExistCheckAndRecover(void)
 				if (isExist == false)
 				{  /* interface that should exist, does NOT exist */
 					printf("%s; radioName= '%s' interface needs to be recovered\n", __FUNCTION__, dwpalService[i].radioName);
-					dwpalService[i].isRecoveryNeeded = true;
+					dwpalService[i].isConnectionEstablishNeeded = true;
 					dwpalService[i].fd = -1;
 					
 					/* note: dwpalService[i].hostapEventCallback should be kept for usage after recovery */
 				}
 			}
+			else if (dwpalService[i].isInterfaceEnabled == true)
+			{
+				dwpalService[i].isConnectionEstablishNeeded = true;
+			}
 
-			/* In case of recovery needed, try recover */
-			if (dwpalService[i].isRecoveryNeeded == true)
+			/* In case of recovery needed, try recover; in case of interface init, try to establish the connection */
+			if (dwpalService[i].isConnectionEstablishNeeded == true)
 			{  /* try recovering the interface */
-				printf("%s; try recover - radioName= '%s'\n", __FUNCTION__, dwpalService[i].radioName);
+				//printf("%s; try recover - radioName= '%s'\n", __FUNCTION__, dwpalService[i].radioName);
 				if (dwpal_hostap_interface_attach(&context[i] /*OUT*/, dwpalService[i].radioName, NULL /*use one-way interface*/) == DWPAL_SUCCESS)
 				{
 					printf("%s; radioName= '%s' interface recovered successfully!\n", __FUNCTION__, dwpalService[i].radioName);
-					dwpalService[i].isRecoveryNeeded = false;
+					dwpalService[i].isConnectionEstablishNeeded = false;
 				}
 				else
 				{
-					printf("%s; dwpal_hostap_interface_attach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalService[i].radioName);
+					//printf("%s; dwpal_hostap_interface_attach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalService[i].radioName);
 				}
 			}
 		}
@@ -487,6 +494,7 @@ DWPAL_Ret dwpal_ext_hostap_interface_detach(char *radioName)
 		return DWPAL_FAILURE;
 	}
 
+	dwpalService[idx].isInterfaceEnabled = false;
 	dwpalService[idx].hostapEventCallback = NULL;
 
 	return DWPAL_SUCCESS;
@@ -520,9 +528,10 @@ DWPAL_Ret dwpal_ext_hostap_interface_attach(char *radioName, DwpalExtHostapEvent
 	if (dwpal_hostap_interface_attach(&context[idx] /*OUT*/, radioName, NULL /*use one-way interface*/) == DWPAL_FAILURE)
 	{
 		printf("%s; dwpal_hostap_interface_attach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, radioName);
-		return DWPAL_FAILURE;
+		/* in this case, continue and try to establish the connection later on */
 	}
 
+	dwpalService[idx].isInterfaceEnabled = true;
 	dwpalService[idx].hostapEventCallback = hostapEventCallback;
 
 	/* Create the listener thread, if it does NOT exist yet */
