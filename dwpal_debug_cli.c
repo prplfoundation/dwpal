@@ -1549,7 +1549,7 @@ static DWPAL_Ret interfaceReset(DwpalService *dwpalServiceLocal, int idx)
 {
 	if (!strncmp(dwpalServiceLocal->interfaceType, "hostap", 7))
 	{
-		if (dwpal_hostap_interface_detach(context[idx]) == DWPAL_FAILURE)
+		if (dwpal_hostap_interface_detach(&context[idx]) == DWPAL_FAILURE)
 		{
 			printf("%s; dwpal_hostap_interface_detach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalServiceLocal->radioName);
 			return DWPAL_FAILURE;

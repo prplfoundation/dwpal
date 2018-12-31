@@ -1598,9 +1598,10 @@ DWPAL_Ret dwpal_hostap_is_interface_exist(void *context, bool *isExist /*OUT*/)
 }
 
 
-DWPAL_Ret dwpal_hostap_interface_detach(void *context)
+DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 {
-	int  ret;
+	DWPAL_Context *localContext;
+	int           ret;
 
 	if (context == NULL)
 	{
@@ -1608,48 +1609,56 @@ DWPAL_Ret dwpal_hostap_interface_detach(void *context)
 		return DWPAL_FAILURE;
 	}
 
-	if (((DWPAL_Context *)context)->interface.hostapd.wpaCtrlPtr == NULL)
+	localContext = (DWPAL_Context *)(*context);
+	if (localContext == NULL)
+	{
+		printf("%s; localContext is NULL ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
+	if (localContext->interface.hostapd.wpaCtrlPtr == NULL)
 	{
 		printf("%s; wpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	if (((DWPAL_Context *)context)->interface.hostapd.wpaCtrlEventCallback != NULL)
+	if (localContext->interface.hostapd.wpaCtrlEventCallback != NULL)
 	{  /* Valid wpaCtrlEventCallback states that this is a two-way connection (for both command and events) */
-		if ((ret = wpa_ctrl_detach(((DWPAL_Context *)context)->interface.hostapd.wpaCtrlPtr)) != 0)
+		if ((ret = wpa_ctrl_detach(localContext->interface.hostapd.wpaCtrlPtr)) != 0)
 		{
-			printf("%s; wpa_ctrl_detach (radioName= '%s') returned ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName, ret);
+			printf("%s; wpa_ctrl_detach (radioName= '%s') returned ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName, ret);
 			return DWPAL_FAILURE;
 		}
 	}
 	else
 	{  /* non-valid wpaCtrlEventCallback states that this is a one-way connection */
 		/* Close & reset 'listenerWpaCtrlPtr' */
-		if (((DWPAL_Context *)context)->interface.hostapd.listenerWpaCtrlPtr == NULL)
+		if (localContext->interface.hostapd.listenerWpaCtrlPtr == NULL)
 		{
 			printf("%s; listenerWpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
-		if ((ret = wpa_ctrl_detach(((DWPAL_Context *)context)->interface.hostapd.listenerWpaCtrlPtr)) != 0)
+		if ((ret = wpa_ctrl_detach(localContext->interface.hostapd.listenerWpaCtrlPtr)) != 0)
 		{
-			printf("%s; wpa_ctrl_detach of listener (radioName= '%s') returned ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName, ret);
+			printf("%s; wpa_ctrl_detach of listener (radioName= '%s') returned ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName, ret);
 			return DWPAL_FAILURE;
 		}
-		wpa_ctrl_close(((DWPAL_Context *)context)->interface.hostapd.listenerWpaCtrlPtr);
+		wpa_ctrl_close(localContext->interface.hostapd.listenerWpaCtrlPtr);
 	}
 
 	/* Close 'wpaCtrlPtr' */
-	wpa_ctrl_close(((DWPAL_Context *)context)->interface.hostapd.wpaCtrlPtr);
+	wpa_ctrl_close(localContext->interface.hostapd.wpaCtrlPtr);
 
-	((DWPAL_Context *)context)->interface.hostapd.wpaCtrlPtr = NULL;
-	((DWPAL_Context *)context)->interface.hostapd.listenerWpaCtrlPtr = NULL;
-	strcpy_s(((DWPAL_Context *)context)->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "\0");
-	strcpy_s(((DWPAL_Context *)context)->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "\0");
+	localContext->interface.hostapd.wpaCtrlPtr = NULL;
+	localContext->interface.hostapd.listenerWpaCtrlPtr = NULL;
+	strcpy_s(localContext->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "\0");
+	strcpy_s(localContext->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "\0");
 
-	((DWPAL_Context *)context)->interface.hostapd.fd = -1;
+	localContext->interface.hostapd.fd = -1;
 
-	free(context);
+	free(*context);
+	*context = NULL;
 
 	return DWPAL_SUCCESS;
 }

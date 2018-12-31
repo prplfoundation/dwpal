@@ -93,7 +93,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLen /*IN/OUT*/, char *opCode /*OUT*/);
 DWPAL_Ret dwpal_hostap_event_fd_get(void *context, int *fd /*OUT*/);
 DWPAL_Ret dwpal_hostap_is_interface_exist(void *context, bool *isExist /*OUT*/);
-DWPAL_Ret dwpal_hostap_interface_detach(void *context);
+DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/);
 DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radioName, DWPAL_wpaCtrlEventCallback wpaCtrlEventCallback);
 
 #endif  //__DWPAL_H_

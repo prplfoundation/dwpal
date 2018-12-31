@@ -481,12 +481,13 @@ DWPAL_Ret dwpal_ext_hostap_interface_detach(char *radioName)
 
 	printf("%s; radioInterfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
-	if (dwpal_hostap_interface_detach(context[idx]) == DWPAL_FAILURE)
+	if (dwpal_hostap_interface_detach(&context[idx]) == DWPAL_FAILURE)
 	{
 		printf("%s; dwpal_hostap_interface_detach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, radioName);
 		return DWPAL_FAILURE;
 	}
 
+	dwpalService[idx].fd = -1;
 	dwpalService[idx].isConnectionEstablishNeeded = false;
 	dwpalService[idx].hostapEventCallback = NULL;
 
