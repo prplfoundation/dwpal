@@ -8,7 +8,11 @@
 #ifndef __DWPAL_H_
 #define __DWPAL_H_
 
+#if defined YOCTO
+#include <linux/nl80211.h>
+#else
 #include "nl80211_copy.h"
+#endif
 #include "vendor_cmds_copy.h"
 
 
@@ -85,7 +89,7 @@ typedef enum
 DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_commands nl80211Command, CmdIdType cmdIdType, enum ltq_nl80211_vendor_subcmds subCommand, unsigned char *vendorData, size_t vendorDataSize);
 DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_nlEventCallback nlEventCallback);
 DWPAL_Ret dwpal_driver_nl_fd_get(void *context, int *fd /*OUT*/);
-DWPAL_Ret dwpal_driver_nl_detach(void *context);
+DWPAL_Ret dwpal_driver_nl_detach(void **context /*IN/OUT*/);
 DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/);
 
 DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse fieldsToParse[]);

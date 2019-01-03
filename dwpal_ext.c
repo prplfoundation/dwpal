@@ -379,7 +379,7 @@ DWPAL_Ret dwpal_ext_driver_nl_detach(void)
 
 	printf("%s; radioInterfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
-	if (dwpal_driver_nl_detach(context[idx]) == DWPAL_FAILURE)
+	if (dwpal_driver_nl_detach(&context[idx]) == DWPAL_FAILURE)
 	{
 		printf("%s; dwpal_driver_nl_detach returned ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;

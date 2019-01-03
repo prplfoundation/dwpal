@@ -631,10 +631,17 @@ DWPAL_Ret dwpal_driver_nl_fd_get(void *context, int *fd /*OUT*/)
 }
 
 
-DWPAL_Ret dwpal_driver_nl_detach(void *context)
+DWPAL_Ret dwpal_driver_nl_detach(void **context /*IN/OUT*/)
 {
-	DWPAL_Context *localContext = (DWPAL_Context *)(context);
+	DWPAL_Context *localContext;
 
+	if (context == NULL)
+	{
+		printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
+	localContext = (DWPAL_Context *)(*context);
 	if (localContext == NULL)
 	{
 		printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
@@ -653,6 +660,8 @@ DWPAL_Ret dwpal_driver_nl_detach(void *context)
 	localContext->interface.driver.nlSocket = NULL;
 	localContext->interface.driver.fd = -1;
 	localContext->interface.driver.nlEventCallback = NULL;
+
+	*context = NULL;
 
 	return DWPAL_SUCCESS;
 }

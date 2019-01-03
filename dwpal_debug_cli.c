@@ -1557,7 +1557,7 @@ static DWPAL_Ret interfaceReset(DwpalService *dwpalServiceLocal, int idx)
 	}
 	else if (!strncmp(dwpalServiceLocal->interfaceType, "Driver", 7))
 	{
-		if (dwpal_driver_nl_detach(context[idx] /*IN/OUT*/) == DWPAL_FAILURE)
+		if (dwpal_driver_nl_detach(&context[idx] /*IN/OUT*/) == DWPAL_FAILURE)
 		{
 			printf("%s; dwpal_driver_nl_detach returned ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
@@ -2264,11 +2264,21 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 			else if (!strncmp(opCode, "DWPAL_DRIVER_NL_CMD_SEND", strnlen_s("DWPAL_DRIVER_NL_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH)))
 			{
 				/* Examples:
+				   iw wlan2 iwlwav g11hRadarDetect
+				   { NL80211_CMD_VENDOR=0x67}, { DWPAL_NETDEV_ID=0 }, { sub_command=0x6b - LTQ_NL80211_VENDOR_SUBCMD_GET_11H_RADAR_DETECT = 107 (=0x6b) }
+				   DWPAL_DRIVER_NL_CMD_SEND wlan0 67 0 6b
+
+				   iw wlan2 iwlwav s11hRadarDetect
+				   { NL80211_CMD_VENDOR=0x67}, { DWPAL_NETDEV_ID=0 }, { sub_command=0x6a - LTQ_NL80211_VENDOR_SUBCMD_SET_11H_RADAR_DETECT = 106 (=0x6a) }
+				   "4" = sizeof(int), "0 0 0 0" or "0 0 0 1" is the integer broken into 4 characters
+				   DWPAL_DRIVER_NL_CMD_SEND wlan0 67 0 6a 4 0 0 0 1
+
 				   iw dev wlan0 vendor recv 0xAC9A96 0x69 0x00
-				   NL80211_CMD_VENDOR=0x67 DWPAL_NETDEV_ID=0 sub_command=0x69
+				   { NL80211_CMD_VENDOR=0x67}, { DWPAL_NETDEV_ID=0 }, { sub_command=0x69 - LTQ_NL80211_VENDOR_SUBCMD_GET_BEACON_PERIOD = 105 (=0x69) }
 				   DWPAL_DRIVER_NL_CMD_SEND wlan0 67 0 69
 
 				   iw dev wlan0 vendor send 0xAC9A96 0x68 0x00 0x00 0x00 0xC8
+				   { NL80211_CMD_VENDOR=0x67}, { DWPAL_NETDEV_ID=0 }, { sub_command=0x69 - LTQ_NL80211_VENDOR_SUBCMD_SET_BEACON_PERIOD = 104 (=0x68) }
 				   "4" = sizeof(int), "0 0 0 C8" is the integer broken into 4 characters
 				   DWPAL_DRIVER_NL_CMD_SEND wlan0 67 0 68 4 0 0 0 C8
 				*/
