@@ -6,7 +6,7 @@ PKG_NAME := dwpal
 
 opt_no_flags := -Werror -Wcast-qual
 
-LOG_CFLAGS := -DPACKAGE_ID=\"FAPIWLAN\" -DLOGGING_ID="dwpal" -DLOG_LEVEL=7 -DLOG_TYPE=1
+LOG_CFLAGS := -DPACKAGE_ID=\"DWPALWLAN\" -DLOGGING_ID="dwpal_6x" -DLOG_LEVEL=7 -DLOG_TYPE=1
 
 bins := libdwpal.so dwpal_debug_cli
 libdwpal.so_sources := dwpal.c dwpal_ext.c $(IWLWAV_HOSTAP_DIR)/src/common/wpa_ctrl.c $(IWLWAV_HOSTAP_DIR)/src/utils/os_unix.c
