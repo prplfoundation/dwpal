@@ -19,7 +19,11 @@
 
 #include <net/if.h>
 
+#if defined YOCTO
+#include <puma_safe_libc.h>
+#else
 #include "safe_str_lib.h"
+#endif
 #include "dwpal.h"
 #include "wpa_ctrl.h"
 

@@ -11,15 +11,28 @@
 #include <malloc.h>
 #include <unistd.h>
 #include <pthread.h>
+#if defined YOCTO
+#include <errno.h>
+#endif
 
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <sys/select.h>
+#if defined YOCTO
+#include <puma_safe_libc.h>
+#else
 #include "safe_str_lib.h"
+#endif
 #include "dwpal.h"
 #include "dwpal_ext.h"
 
 #include <pthread.h>
+
+#if defined YOCTO
+#if !defined RSIZE_MAX_STR
+#define RSIZE_MAX_STR 256
+#endif
+#endif
 
 DWPAL_Ret nlCliEventCallback(size_t len, unsigned char *data);
 void dwpalCliCtrlEventCallback(char *msg, size_t len);

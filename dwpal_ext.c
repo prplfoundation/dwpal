@@ -14,7 +14,11 @@
 
 #include "dwpal_ext.h"
 #include "dwpal.h"
+#if defined YOCTO
+#include <puma_safe_libc.h>
+#else
 #include "safe_str_lib.h"
+#endif
 
 
 typedef struct
