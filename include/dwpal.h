@@ -8,10 +8,10 @@
 #ifndef __DWPAL_H_
 #define __DWPAL_H_
 
-#include <ulogging.h>
 #if defined YOCTO
 #include <linux/nl80211.h>
 #else
+#include <ulogging.h>
 #include "nl80211_copy.h"
 #endif
 #include "vendor_cmds_copy.h"
