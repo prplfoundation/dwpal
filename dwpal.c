@@ -1029,9 +1029,10 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 								(*(fieldsToParse[i].numOfValidArgs))++;
 							}
 
-							if ((strnlen_s(stringOfValues, DWPAL_TO_HOSTAPD_MSG_LENGTH) + 1) > fieldsToParse[i].numOfArrayArgs)
+							if ((strnlen_s(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1) > fieldsToParse[i].numOfArrayArgs)
 							{
-								PRINT_ERROR("%s; string length (%d) is bigger the allocated string size (%d)\n", __FUNCTION__, strnlen_s(stringOfValues, DWPAL_TO_HOSTAPD_MSG_LENGTH) + 1, fieldsToParse[i].numOfArrayArgs);
+								PRINT_ERROR("%s; string length (%d) is bigger the allocated string size (%d)\n",
+								            __FUNCTION__, strnlen_s(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, fieldsToParse[i].numOfArrayArgs);
 								ret = DWPAL_FAILURE;  /* longer string then allocated ==> Abort! */
 							}
 							else
