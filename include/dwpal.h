@@ -12,15 +12,6 @@
 #include "vendor_cmds_copy.h"  // https://gts-chd.intel.com/projects/SW_WAVE/repos/iwlwav-dev/browse/drivers/net/wireless/intel/iwlwav/wireless/driver/vendor_cmds.h
 
 
-#if defined YOCTO_LOGGING
-#include "help_logging.h"
-#define PRINT_DEBUG(...)  LOGF_LOG_DEBUG(__VA_ARGS__)
-#define PRINT_ERROR(...)  LOGF_LOG_ERROR(__VA_ARGS__)
-#else
-#define PRINT_DEBUG(...)  printf(__VA_ARGS__)
-#define PRINT_ERROR(...)  printf(__VA_ARGS__)
-#endif
-
 #define HOSTAPD_TO_DWPAL_MSG_LENGTH            (4096 * 3)
 #define DWPAL_TO_HOSTAPD_MSG_LENGTH            512
 #define DWPAL_CLI_LINE_STRING_LENGTH           4096
