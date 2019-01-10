@@ -20,6 +20,15 @@
 #include "safe_str_lib.h"
 #endif
 
+#if defined YOCTO_LOGGING
+#include "help_logging.h"
+#define PRINT_DEBUG(...)  LOGF_LOG_DEBUG(__VA_ARGS__)
+#define PRINT_ERROR(...)  LOGF_LOG_ERROR(__VA_ARGS__)
+#else
+#define PRINT_DEBUG(...)  printf(__VA_ARGS__)
+#define PRINT_ERROR(...)  printf(__VA_ARGS__)
+#endif
+
 
 typedef struct
 {
@@ -346,7 +355,7 @@ DWPAL_Ret dwpal_ext_driver_nl_cmd_send(char *ifname, unsigned int nl80211Command
 {
 	int i, idx;
 
-	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand);
+	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x, vendorDataSize= %d\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand, vendorDataSize);
 
 	for (i=0; i < (int)vendorDataSize; i++)
 	{

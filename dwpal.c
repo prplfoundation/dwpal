@@ -39,6 +39,15 @@
 
 #define OUI_LTQ 0xAC9A96
 
+#if defined YOCTO_LOGGING
+#include "help_logging.h"
+#define PRINT_DEBUG(...)  LOGF_LOG_DEBUG(__VA_ARGS__)
+#define PRINT_ERROR(...)  LOGF_LOG_ERROR(__VA_ARGS__)
+#else
+#define PRINT_DEBUG(...)  printf(__VA_ARGS__)
+#define PRINT_ERROR(...)  printf(__VA_ARGS__)
+#endif
+
 
 typedef struct
 {
@@ -135,7 +144,7 @@ static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int 
 			return false;
 		}
 
-		strcpy_s(fieldValue, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH, param);
+		strcpy_s(fieldValue, strnlen_s(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, param);
 	}
 
 	if (localBuf != NULL)
@@ -452,7 +461,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 
 	PRINT_DEBUG("%s Entry!\n", __FUNCTION__);
 
-	if (nl80211Command != 0x67 /*NL80211_CMD_VENDOR*/)
+	if (nl80211Command != NL80211_CMD_VENDOR /*0x67*/)
 	{
 		PRINT_ERROR("%s; non supported command (0x%x); currently we support ONLY NL80211_CMD_VENDOR (0x67) ==> Abort!\n", __FUNCTION__, (unsigned int)nl80211Command);
 		return DWPAL_FAILURE;
@@ -924,7 +933,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				}
 
 				memset((void *)endFieldName[idx], '\0', DWPAL_FIELD_NAME_LENGTH);  /* Clear the field name */
-				strcpy_s(endFieldName[idx], DWPAL_FIELD_NAME_LENGTH, fieldsToParse[i].stringToSearch);
+				strcpy_s(endFieldName[idx], strnlen_s(fieldsToParse[i].stringToSearch, DWPAL_FIELD_NAME_LENGTH) + 1, fieldsToParse[i].stringToSearch);
 
 				idx++;
 			}
@@ -943,7 +952,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			else
 			{
 				memset((void *)endFieldName[idx], '\0', DWPAL_FIELD_NAME_LENGTH);  /* Clear the field name */
-				strcpy_s(endFieldName[idx], DWPAL_FIELD_NAME_LENGTH, "\n");
+				strcpy_s(endFieldName[idx], 1, "\n");
 				isEndFieldNameAllocated = true;
 			}
 		}
@@ -1027,7 +1036,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 							}
 							else
 							{
-								strcpy_s((char *)field, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH, stringOfValues);
+								strcpy_s((char *)field, strnlen_s(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, stringOfValues);
 							}
 						}
 						else
@@ -1532,7 +1541,7 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 			localMsg = strdup(msg);
 			localOpCode = strtok_s(localMsg, &dmaxLen, ">", &p2str);
 			localOpCode = strtok_s(NULL, &dmaxLen, " ", &p2str);
-			strcpy_s(opCode, DWPAL_OPCODE_STRING_LENGTH, localOpCode);
+			strcpy_s(opCode, strnlen_s(localOpCode, DWPAL_OPCODE_STRING_LENGTH) + 1, localOpCode);
 			free((void *)localMsg);
 		}
 	}
@@ -1665,8 +1674,8 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 
 	localContext->interface.hostapd.wpaCtrlPtr = NULL;
 	localContext->interface.hostapd.listenerWpaCtrlPtr = NULL;
-	strcpy_s(localContext->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "\0");
-	strcpy_s(localContext->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "\0");
+	localContext->interface.hostapd.operationMode[0] = '\0';
+	localContext->interface.hostapd.wpaCtrlName[0] = '\0';
 
 	localContext->interface.hostapd.fd = -1;
 
@@ -1723,8 +1732,8 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 	if (access(wpaCtrlName, F_OK) == 0)
 	{
 		//PRINT_DEBUG("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, localContext->interface.hostapd.radioName);
-		strcpy_s(localContext->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "AP");
-		strcpy_s(localContext->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, wpaCtrlName);
+		strcpy_s(localContext->interface.hostapd.operationMode, 3, "AP");
+		strcpy_s(localContext->interface.hostapd.wpaCtrlName, strnlen_s(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
 	}
 	else
 	{
@@ -1732,13 +1741,13 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 		if (access(wpaCtrlName, F_OK) == 0)
 		{
 			//PRINT_DEBUG("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, localContext->interface.hostapd.radioName);
-			strcpy_s(localContext->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "STA");
-			strcpy_s(localContext->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, wpaCtrlName);
+			strcpy_s(localContext->interface.hostapd.operationMode, 4, "STA");
+			strcpy_s(localContext->interface.hostapd.wpaCtrlName, strnlen_s(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
 		}
 		else
 		{
-			strcpy_s(localContext->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "\0");
-			strcpy_s(localContext->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "\0");
+			localContext->interface.hostapd.operationMode[0] = '\0';
+			localContext->interface.hostapd.wpaCtrlName[0] = '\0';
 
 			//PRINT_ERROR("%s; radio interface '%s' not present ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
 			return DWPAL_FAILURE;

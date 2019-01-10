@@ -8,13 +8,8 @@
 #ifndef __DWPAL_H_
 #define __DWPAL_H_
 
-#if defined YOCTO
-#include <linux/nl80211.h>
-#else
-#include <ulogging.h>
-#include "nl80211_copy.h"
-#endif
-#include "vendor_cmds_copy.h"
+#include "nl80211_copy.h"  // https://gts-chd.intel.com/projects/SW_WAVE/repos/iwlwav-hostap/browse/src/drivers/nl80211_copy.h?at=refs%2Fheads%2Fiwlwav_intel_ip_ax
+#include "vendor_cmds_copy.h"  // https://gts-chd.intel.com/projects/SW_WAVE/repos/iwlwav-dev/browse/drivers/net/wireless/intel/iwlwav/wireless/driver/vendor_cmds.h
 
 
 #if defined YOCTO_LOGGING
