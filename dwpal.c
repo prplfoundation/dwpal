@@ -952,7 +952,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			else
 			{
 				memset((void *)endFieldName[idx], '\0', DWPAL_FIELD_NAME_LENGTH);  /* Clear the field name */
-				strcpy_s(endFieldName[idx], 1, "\n");
+				strcpy_s(endFieldName[idx], 2, "\n");
 				isEndFieldNameAllocated = true;
 			}
 		}
