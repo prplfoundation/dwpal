@@ -2265,7 +2265,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 						if (isDwpalExtenderMode)
 						{
-							ret = dwpal_ext_hostap_cmd_send(VAPName, "GET_ACS_REPORT", NULL, reply, &replyLen);
+							ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
 						}
 						else
 						{
