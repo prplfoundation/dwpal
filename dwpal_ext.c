@@ -466,6 +466,18 @@ DWPAL_Ret dwpal_ext_hostap_cmd_send(char *radioName, char *cmdHeader, FieldsToCm
 
 	PRINT_DEBUG("%s; radioInterfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
+	if (context[idx] == NULL)
+	{
+		PRINT_ERROR("%s; context[%d] is NULL ==> Abort!\n", __FUNCTION__, idx);
+		return DWPAL_FAILURE;
+	}
+
+	if (dwpalService[idx].isConnectionEstablishNeeded == true)
+	{
+		PRINT_ERROR("%s; interface is being reconnected, but still NOT ready ==> Abort!\n", __FUNCTION__, idx);
+		return DWPAL_FAILURE;
+	}
+
 	if (dwpal_hostap_cmd_send(context[idx], cmdHeader, fieldsToCmdParse, reply, replyLen) == DWPAL_FAILURE)
 	{
 		PRINT_ERROR("%s; '%s' command send error\n", __FUNCTION__, cmdHeader);
@@ -493,6 +505,12 @@ DWPAL_Ret dwpal_ext_hostap_interface_detach(char *radioName)
 	}
 
 	PRINT_DEBUG("%s; radioInterfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+
+	if (context[idx] == NULL)
+	{
+		PRINT_ERROR("%s; context[%d] is NULL ==> Abort!\n", __FUNCTION__, idx);
+		return DWPAL_FAILURE;
+	}
 
 	if (dwpal_hostap_interface_detach(&context[idx]) == DWPAL_FAILURE)
 	{

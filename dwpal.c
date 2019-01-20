@@ -1397,6 +1397,12 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 		return DWPAL_FAILURE;
 	}
 
+	if ( ((DWPAL_Context *)context)->interface.hostapd.wpaCtrlPtr == NULL )
+	{
+		PRINT_ERROR("%s; input params error (wpaCtrlPtr = NULL) ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
 	//PRINT_DEBUG("%s Entry; radioName= '%s', cmdHeader= '%s', replyLen= %d\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName, cmdHeader, *replyLen);
 
 	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s", cmdHeader);
@@ -1461,6 +1467,8 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 
 	//PRINT_DEBUG("%s; cmd= '%s'\n", __FUNCTION__, cmd);
 
+	memset((void *)reply, '\0', *replyLen);  /* Clear the output buffer */
+
 	ret = wpa_ctrl_request(((DWPAL_Context *)context)->interface.hostapd.wpaCtrlPtr,
 	                       cmd,
 						   strnlen_s(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH),
@@ -1472,7 +1480,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 		PRINT_ERROR("%s; wpa_ctrl_request() returned error (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 		return DWPAL_FAILURE;
 	}
-	reply[*replyLen] = '\0';  /* we need it to clear the "junk" at the end of the string */  //reply[*replyLen - 1] = '\0';  /* we need it to clear the "junk" at the end of the string */
+	reply[*replyLen] = '\0';  /* we need it to clear the "junk" at the end of the string */
 
 	//PRINT_DEBUG("%s; replyLen= %d\nreply=\n%s\n", __FUNCTION__, *replyLen, reply);
 
