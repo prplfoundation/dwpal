@@ -667,7 +667,7 @@ static DWPAL_Ret dwpal_req_beacon_handle(void *localContext, char *VAPName, char
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; GET_STA_MEASUREMENTS command send error\n", __FUNCTION__);
+		PRINT_ERROR("%s; REQ_BEACON command send error\n", __FUNCTION__);
 	}
 	else
 	{

@@ -1385,7 +1385,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 }
 
 
-DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply, size_t *replyLen)
+DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply /*OUT*/, size_t *replyLen /*IN/OUT*/)
 {
 	int       i;
 	DWPAL_Ret ret = DWPAL_SUCCESS;

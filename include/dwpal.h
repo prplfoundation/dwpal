@@ -89,7 +89,7 @@ DWPAL_Ret dwpal_driver_nl_detach(void **context /*IN/OUT*/);
 DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/);
 
 DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse fieldsToParse[]);
-DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply, size_t *replyLen);
+DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply /*OUT*/, size_t *replyLen /*IN/OUT*/);
 DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLen /*IN/OUT*/, char *opCode /*OUT*/);
 DWPAL_Ret dwpal_hostap_event_fd_get(void *context, int *fd /*OUT*/);
 DWPAL_Ret dwpal_hostap_is_interface_exist(void *context, bool *isExist /*OUT*/);

@@ -446,7 +446,7 @@ DWPAL_Ret dwpal_ext_driver_nl_attach(DwpalExtNlEventCallback nlEventCallback)
 }
 
 
-DWPAL_Ret dwpal_ext_hostap_cmd_send(char *radioName, char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply, size_t *replyLen)
+DWPAL_Ret dwpal_ext_hostap_cmd_send(char *radioName, char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply /*OUT*/, size_t *replyLen /*IN/OUT*/)
 {
 	int idx;
 
