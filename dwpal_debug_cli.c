@@ -238,7 +238,7 @@ static DwpalService dwpalService[] = { { "hostap", "wlan0", "ONE_WAY", -1 },  /*
                                        { "hostap", "wlan5", "ONE_WAY", -1 },
                                        { "Driver", "ALL",   "TWO_WAY", -1 } };
 
-static void *context[sizeof(dwpalService) / sizeof(DwpalService)];
+static void *context[sizeof(dwpalService) / sizeof(DwpalService)] = { [0 ... (sizeof(dwpalService) / sizeof(DwpalService) - 1) ] = NULL };
 static bool isCliRunning = true;
 static char opCodeForListener[DWPAL_OPCODE_STRING_LENGTH] = "\0";
 static bool isContinueListening = true;
@@ -437,7 +437,7 @@ static int interfaceIndexGet(char *interfaceType, const char *radioName)
 }
 
 
-static bool resultsPrint(FieldsToParse fieldsToParse[], size_t numOfArrayArgs, size_t sizeOfStruct)
+static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, size_t sizeOfStruct)
 {
 	int    i = 0;
 	size_t j = 0, k;
@@ -451,7 +451,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t numOfArrayArgs, s
 		return false;
 	}
 
-	for (k=0; k < numOfArrayArgs; k++)
+	for (k=0; k < totalSizeOfArg; k++)
 	{
 		i = 0;
 
@@ -461,7 +461,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t numOfArrayArgs, s
 			break;
 		}
 
-		if (numOfArrayArgs > 1)
+		if (totalSizeOfArg > 1)
 		{
 			snprintf(indexToPrint, sizeof(indexToPrint), "[%d] ", k);
 			//PRINT_DEBUG("%s; sizeof(indexToPrint)= %d, indexToPrint= '%s'\n", __FUNCTION__, sizeof(indexToPrint), indexToPrint);
@@ -1635,7 +1635,6 @@ static DWPAL_Ret interfaceSet(DwpalService *dwpalServiceLocal, int idx)
 	if (!strncmp(dwpalServiceLocal->interfaceType, "hostap", 7))
 	{
 		PRINT_DEBUG("%s Entry; idx= %d ==> hostapd\n", __FUNCTION__, idx);
-		//strncpy(((DWPAL_Context *)context)[idx].interface.hostapd.radioName, dwpalServiceLocal->radioName, DWPAL_RADIO_NAME_STRING_LENGTH);
 
 		if (!strncmp(dwpalServiceLocal->serviceName, "TWO_WAY", 10))
 		{
@@ -2326,15 +2325,6 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				   { nl80211Command = NL80211_CMD_VENDOR=0x67}, { cmdIdType = DWPAL_NETDEV_ID=0 }, { sub_command=0x6a - LTQ_NL80211_VENDOR_SUBCMD_SET_11H_RADAR_DETECT = 106 (=0x6a) }
 				   "4" = sizeof(int), "0 0 0 0" or "0 0 0 1" is the integer broken into 4 characters
 				   DWPAL_DRIVER_NL_CMD_SEND wlan0 67 0 6a 4 0 0 0 1
-
-				   iw dev wlan0 vendor recv 0xAC9A96 0x69 0x00
-				   { nl80211Command = NL80211_CMD_VENDOR=0x67}, { cmdIdType = DWPAL_NETDEV_ID=0 }, { sub_command=0x69 - LTQ_NL80211_VENDOR_SUBCMD_GET_BEACON_PERIOD = 105 (=0x69) }
-				   DWPAL_DRIVER_NL_CMD_SEND wlan0 67 0 69
-
-				   iw dev wlan0 vendor send 0xAC9A96 0x68 0x00 0x00 0x00 0xC8
-				   { nl80211Command = NL80211_CMD_VENDOR=0x67}, { cmdIdType = DWPAL_NETDEV_ID=0 }, { sub_command=0x69 - LTQ_NL80211_VENDOR_SUBCMD_SET_BEACON_PERIOD = 104 (=0x68) }
-				   "4" = sizeof(int), "0 0 0 C8" is the integer broken into 4 characters
-				   DWPAL_DRIVER_NL_CMD_SEND wlan0 67 0 68 4 0 0 0 C8
 				*/
 
 				field = strtok_s(NULL, &dmaxLen, " ", &p2str);
@@ -2469,12 +2459,16 @@ static void dwpalDebugCliStart(void)
 
 	PRINT_DEBUG("\n");
 
-	/* DeInit the services */
+	/* DeInit the services - only in case of using non-dwpal-ext mode */
 	for (i=0; i < numOfServices; i++)
 	{
-		if (interfaceReset(&dwpalService[i], i) == DWPAL_SUCCESS)
+		if (dwpalService[i].fd != -1)
 		{
-			PRINT_DEBUG("%s; interfaceReset (radioName= '%s', serviceName= '%s') successfully\n", __FUNCTION__, dwpalService[i].radioName, dwpalService[i].serviceName);
+			if (interfaceReset(&dwpalService[i], i) == DWPAL_SUCCESS)
+			{
+				PRINT_DEBUG("%s; interfaceReset (radioName= '%s', serviceName= '%s') successfully\n",
+				            __FUNCTION__, dwpalService[i].radioName, dwpalService[i].serviceName);
+			}
 		}
 	}
 
@@ -2496,24 +2490,31 @@ int main(int argc, char *argv[])
 	   dwpal_debug_cli
 
 	   2) One-shot mode examples:
-	   dwpal_debug_cli -i0 -vwlan0 -c"GET_VAP_MEASUREMENTS wlan0"
-	   dwpal_debug_cli -i2 -vwlan2 -c"GET_VAP_MEASUREMENTS wlan2"
+	   dwpal_debug_cli -ihostap -vwlan0 -c"GET_VAP_MEASUREMENTS wlan0"
+	   dwpal_debug_cli -ihostap -vwlan2 -c"GET_VAP_MEASUREMENTS wlan2"
 
 	   Start endless listener for both wlan0 & wlan2:
-	   dwpal_debug_cli -i0 -i2 &
+	   dwpal_debug_cli -ihostap -vwlan0 -vwlan2 &
 
 	   Start listener for wlan0 up until "AP-STA-CONNECTED" will be received:
-	   dwpal_debug_cli -i0 -l"AP-STA-CONNECTED"
+	   dwpal_debug_cli -ihostap -vwlan0 -l"AP-STA-CONNECTED"
+
+	   Start endless NL socket listener
+	   dwpal_debug_cli -iDriver &
+
+	   Start endless listener for both wlan0 & wlan2:
+	   dwpal_debug_cli -ihostap -vwlan0 -vwlan2 -iDriver &
 
 	   Send NL socket command (without data) and wait up until a response will be received:
-	   dwpal_debug_cli -i6 -vwlan0 -c107
+	   dwpal_debug_cli -iDriver -vwlan0 -c107
 
-	   Send NL socket command (with data):
-	   dwpal_debug_cli -i6 -vwlan0 -c106 -d"0 0 0 1"
+	   Send NL socket command (with data, without reply via the callback):
+	   dwpal_debug_cli -iDriver -vwlan0 -c106 -d"0 0 0 1"
 	*/
 
-	int           i, arrayIdx, option = 0, interfaceIndex = -1;
+	int           i, arrayIdx, option = 0;
 	char          *tempString, cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH] = "\0";
+	char          interfaceType[DWPAL_GENERAL_STRING_LENGTH] = "\0";
 	char          VAPName[DWPAL_GENERAL_STRING_LENGTH] = "\0";
 	char          vendorDataString[512] = "\0", *vendorDataTempString, *reply, *p2str;
 	unsigned char vendorData[128] = "\0";
@@ -2525,7 +2526,6 @@ int main(int argc, char *argv[])
 
 	if (argc == 1)
 	{  /* Interactive mode */
-		PRINT_DEBUG("sizeof(char)= %d, sizeof(short int)= %d\n", sizeof(char), sizeof(short int));
 		dwpalDebugCliStart();  /* Start the CLI */
 	}
 	else
@@ -2536,24 +2536,14 @@ int main(int argc, char *argv[])
 			switch (option)
 			{
 				case 'i':
-					interfaceIndex = atoi(optarg);
-					PRINT_DEBUG("interfaceIndex= %d\n", interfaceIndex);
-					if ( (interfaceIndex < 0) || (interfaceIndex >= (int)((sizeof(dwpalService) / sizeof(DwpalService)))) )
+					stringLength = strnlen_s(optarg, DWPAL_GENERAL_STRING_LENGTH);
+					strncpy_s(interfaceType, sizeof(interfaceType), optarg, stringLength);
+					interfaceType[stringLength] = '\0';
+					PRINT_DEBUG("interfaceType= '%s'\n", interfaceType);
+
+					if (interfaceType[0] != '\0')
 					{
-						PRINT_ERROR("interfaceIndex (%d) >= numOfInterfaces (%d) (or negative) ==> Abort!\n", interfaceIndex, (int)((sizeof(dwpalService) / sizeof(DwpalService))));
-						return -1;
-					}
-					else
-					{
-						if (!strncmp(dwpalService[interfaceIndex].interfaceType, "hostap", 7))
-						{
-							if (dwpal_ext_hostap_interface_attach(dwpalService[interfaceIndex].radioName, dwpalOneShotEventCallback) == DWPAL_FAILURE)
-							{
-								PRINT_ERROR("%s; dwpal_ext_hostap_interface_attach returned ERROR (VAPName= '%s') ==> Abort!\n", __FUNCTION__, dwpalService[interfaceIndex].radioName);
-								return -1;
-							}
-						}
-						else if (!strncmp(dwpalService[interfaceIndex].interfaceType, "Driver", 7))
+						if (!strncmp(interfaceType, "Driver", 7))
 						{
 							if (dwpal_ext_driver_nl_attach(nlCliOneShotEventCallback) == DWPAL_FAILURE)
 							{
@@ -2569,6 +2559,21 @@ int main(int argc, char *argv[])
 					strncpy_s(VAPName, sizeof(VAPName), optarg, stringLength);
 					VAPName[stringLength] = '\0';
 					PRINT_DEBUG("VAPName= '%s'\n", VAPName);
+
+					if (interfaceType[0] != '\0')
+					{
+						if (!strncmp(interfaceType, "hostap", 7))
+						{
+							if (VAPName[0] != '\0')
+							{
+								if (dwpal_ext_hostap_interface_attach(VAPName, dwpalOneShotEventCallback) == DWPAL_FAILURE)
+								{
+									PRINT_ERROR("%s; dwpal_ext_hostap_interface_attach returned ERROR (VAPName= '%s') ==> Abort!\n", __FUNCTION__, VAPName);
+									return -1;
+								}
+							}
+						}
+					}
 					break;
 
 				case 'c':
@@ -2618,10 +2623,10 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		PRINT_DEBUG("VAPName= '%s', cmd= '%s'\n", VAPName, cmd);
-		if ( (cmd[0] != '\0') && (interfaceIndex != -1) )
+		PRINT_DEBUG("interfaceType= '%s', VAPName= '%s', cmd= '%s'\n", interfaceType, VAPName, cmd);
+		if (interfaceType[0] != '\0')
 		{
-			if (!strncmp(dwpalService[interfaceIndex].interfaceType, "hostap", 7))
+			if (!strncmp(interfaceType, "hostap", 7))
 			{
 				if (VAPName[0] != '\0')
 				{
@@ -2632,27 +2637,33 @@ int main(int argc, char *argv[])
 						return -1;
 					}
 
-					if (dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen) == DWPAL_FAILURE)
+					if (cmd[0] != '\0')
 					{
-						PRINT_ERROR("%s; dwpal_hostap_cmd_send (VAPName= '%s', cmd= '%s') returned ERROR (reply= '%s') ==> Abort!\n", __FUNCTION__, VAPName, cmd, reply);
-						return -1;
-					}
+						if (dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen) == DWPAL_FAILURE)
+						{
+							PRINT_ERROR("%s; dwpal_hostap_cmd_send (VAPName= '%s', cmd= '%s') returned ERROR (reply= '%s') ==> Abort!\n", __FUNCTION__, VAPName, cmd, reply);
+							return -1;
+						}
 
-					PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+						PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+					}
 				}
 			}
-			else if (!strncmp(dwpalService[interfaceIndex].interfaceType, "Driver", 7))
+			else if (!strncmp(interfaceType, "Driver", 7))
 			{
-				if (dwpal_ext_driver_nl_cmd_send(VAPName, NL80211_CMD_VENDOR, DWPAL_NETDEV_ID, (unsigned int)atoi(cmd), vendorData, vendorDataSize) == DWPAL_FAILURE)
+				if ( (VAPName[0] != '\0') && (cmd[0] != '\0') )
 				{
-					PRINT_ERROR("%s; dwpal_ext_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
+					if (dwpal_ext_driver_nl_cmd_send(VAPName, NL80211_CMD_VENDOR, DWPAL_NETDEV_ID, (unsigned int)atoi(cmd), vendorData, vendorDataSize) == DWPAL_FAILURE)
+					{
+						PRINT_ERROR("%s; dwpal_ext_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
+					}
 				}
 			}
 		}
 
-		if ( (interfaceIndex != -1) &&
-		     ( ( (!strncmp(dwpalService[interfaceIndex].interfaceType, "hostap", 7)) && (cmd[0] == '\0') ) ||
-		       ( (!strncmp(dwpalService[interfaceIndex].interfaceType, "Driver", 7)) && (cmd[0] != '\0') && (vendorDataSize == 0) ) ) )
+		if ( ( (!strncmp(interfaceType, "hostap", 7)) && (cmd[0] == '\0') ) ||  /* 'hostap' without any command to send */
+		     ( (!strncmp(interfaceType, "Driver", 7)) && (cmd[0] == '\0') ) ||  /* 'Driver' without any command to send */
+		     ( (!strncmp(interfaceType, "Driver", 7)) && (cmd[0] != '\0') && (vendorDataSize == 0) ) )  /* 'Driver' with command to send but without any data */
 		{
 			while (isContinueListening)
 			{

@@ -30,11 +30,19 @@
 #endif
 
 
+#define NUM_OF_SUPPORTED_VAPS 32
+
+
+typedef enum
+{
+	THREAD_CANCEL =0,
+	THREAD_CREATE
+} DwpalThreadOperation;
+
 typedef struct
 {
-	char                        *interfaceType;
-	char                        *radioName;
-	char                        *serviceName;
+	char                        interfaceType[DWPAL_INTERFACE_TYPE_STRING_LENGTH];
+	char                        VAPName[DWPAL_VAP_NAME_STRING_LENGTH];
 	int                         fd;
 	bool                        isConnectionEstablishNeeded;
 	DwpalExtHostapEventCallback hostapEventCallback;
@@ -42,81 +50,140 @@ typedef struct
 } DwpalService;
 
 
-static DwpalService dwpalService[] = { { "hostap", "wlan0", "ONE_WAY", -1, false, NULL, NULL },  /* Will send commands and get events on a different socket */
-                                       { "hostap", "wlan1", "ONE_WAY", -1, false, NULL, NULL },
-                                       { "hostap", "wlan2", "ONE_WAY", -1, false, NULL, NULL },
-                                       { "hostap", "wlan3", "ONE_WAY", -1, false, NULL, NULL },
-                                       { "hostap", "wlan4", "ONE_WAY", -1, false, NULL, NULL },
-                                       { "hostap", "wlan5", "ONE_WAY", -1, false, NULL, NULL },
-                                       { "Driver", "ALL",   "ONE_WAY", -1, false, NULL, NULL } };
-
-static void *context[sizeof(dwpalService) / sizeof(DwpalService)];
-static pthread_t thread_id = (pthread_t)0;
+static DwpalService *dwpalService[NUM_OF_SUPPORTED_VAPS + 1] = { [0 ... NUM_OF_SUPPORTED_VAPS ] = NULL };  /* add 1 place for NL */
+static void *context[sizeof(dwpalService) / sizeof(DwpalService *)]= { [0 ... (sizeof(dwpalService) / sizeof(DwpalService *) - 1) ] = NULL };;
 
 
-static DWPAL_Ret radioInterfaceIndexGet(char *interfaceType, char *radioName, int *idx)
+static DWPAL_Ret interfaceIndexGet(char *interfaceType, char *VAPName, int *idx)
 {
 	int    i;
-	size_t numOfServices = sizeof(dwpalService) / sizeof(DwpalService);
+	size_t numOfServices = sizeof(dwpalService) / sizeof(DwpalService *);
 
 	*idx = 0;
 
 	for (i=0; i < (int)numOfServices; i++)
 	{
-		if ( (!strncmp(interfaceType, dwpalService[i].interfaceType, DWPAL_GENERAL_STRING_LENGTH)) &&
-		     (!strncmp(radioName, dwpalService[i].radioName, DWPAL_RADIO_NAME_STRING_LENGTH)) )
+		if (dwpalService[i] == NULL)
+			continue;
+
+		if ( (!strncmp(interfaceType, dwpalService[i]->interfaceType, DWPAL_INTERFACE_TYPE_STRING_LENGTH)) &&
+		     (!strncmp(VAPName, dwpalService[i]->VAPName, DWPAL_VAP_NAME_STRING_LENGTH)) )
 		{
 			*idx = i;
 			return DWPAL_SUCCESS;
 		}
 	}
 
+	return DWPAL_INTERFACE_IS_DOWN;
+}
+
+
+static DWPAL_Ret interfaceIndexCreate(char *interfaceType, char *VAPName, int *idx)
+{
+	int    i;
+	size_t numOfServices = sizeof(dwpalService) / sizeof(DwpalService *);
+
+	*idx = 0;
+
+	if (interfaceIndexGet(interfaceType, VAPName, idx) == DWPAL_SUCCESS)
+	{
+		PRINT_ERROR("%s; the interface (interfaceType= '%s', VAPName= '%s') is already exist ==> Abort!\n",
+		            __FUNCTION__, interfaceType, VAPName);
+		return DWPAL_FAILURE;
+	}
+
+	/* Getting here means that the interface does NOT exist ==> create it! */
+	for (i=0; i < (int)numOfServices; i++)
+	{
+		if (dwpalService[i] == NULL)
+		{  /* First empty entry ==> use it */
+			dwpalService[i] = (DwpalService *)malloc(sizeof(DwpalService));
+			if (dwpalService[i] == NULL)
+			{
+				PRINT_ERROR("%s; malloc failed ==> Abort!\n", __FUNCTION__);
+				return DWPAL_FAILURE;
+			}
+
+			strcpy_s(dwpalService[i]->interfaceType, sizeof(dwpalService[i]->interfaceType), interfaceType);
+			strcpy_s(dwpalService[i]->VAPName, sizeof(dwpalService[i]->VAPName), VAPName);
+
+			*idx = i;
+			return DWPAL_SUCCESS;
+		}
+	}
+
+	PRINT_ERROR("%s; number of interfaces (%d) reached its limit ==> Abort!\n", __FUNCTION__, i);
+
 	return DWPAL_FAILURE;
+}
+
+
+static bool isAnyInterfaceActive(void)
+{
+	int i, numOfServices = sizeof(dwpalService) / sizeof(DwpalService *);;
+
+	/* check if there are active interfaces */
+	for (i=0; i < numOfServices; i++)
+	{
+		/* In case that there is a valid context, break! */
+		if (context[i] != NULL)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 
 static void interfaceExistCheckAndRecover(void)
 {
-	int  i, numOfServices = sizeof(dwpalService) / sizeof(DwpalService);
+	int  i, numOfServices = sizeof(dwpalService) / sizeof(DwpalService *);
 	bool isExist = false;
 
 	//PRINT_DEBUG("%s Entry\n", __FUNCTION__);
 
 	for (i=0; i < numOfServices; i++)
 	{
-		if (!strncmp(dwpalService[i].interfaceType, "hostap", 7))
+		/* In case that there is no valid context, continue... */
+		if (context[i] == NULL)
 		{
-			if (dwpalService[i].fd > 0)
+			continue;
+		}
+
+		if (!strncmp(dwpalService[i]->interfaceType, "hostap", 7))
+		{
+			if (dwpalService[i]->fd > 0)
 			{
 				/* check if interface that should exist, still exists */
 				if (dwpal_hostap_is_interface_exist(context[i], &isExist /*OUT*/) == DWPAL_FAILURE)
 				{
-					PRINT_ERROR("%s; dwpal_hostap_is_interface_exist for radioName= '%s' error ==> cont...\n", __FUNCTION__, dwpalService[i].radioName);
+					PRINT_ERROR("%s; dwpal_hostap_is_interface_exist for VAPName= '%s' error ==> cont...\n", __FUNCTION__, dwpalService[i]->VAPName);
 					continue;
 				}
 
 				if (isExist == false)
 				{  /* interface that should exist, does NOT exist */
-					PRINT_ERROR("%s; radioName= '%s' interface needs to be recovered\n", __FUNCTION__, dwpalService[i].radioName);
-					dwpalService[i].isConnectionEstablishNeeded = true;
-					dwpalService[i].fd = -1;
+					PRINT_ERROR("%s; VAPName= '%s' interface needs to be recovered\n", __FUNCTION__, dwpalService[i]->VAPName);
+					dwpalService[i]->isConnectionEstablishNeeded = true;
+					dwpalService[i]->fd = -1;
 					
-					/* note: dwpalService[i].hostapEventCallback should be kept for usage after recovery */
+					/* note: dwpalService[i]->hostapEventCallback should be kept for usage after recovery */
 				}
 			}
 
 			/* In case of recovery needed, try recover; in case of interface init, try to establish the connection */
-			if (dwpalService[i].isConnectionEstablishNeeded == true)
+			if (dwpalService[i]->isConnectionEstablishNeeded == true)
 			{  /* try recovering the interface */
-				//PRINT_DEBUG("%s; try recover - radioName= '%s'\n", __FUNCTION__, dwpalService[i].radioName);
-				if (dwpal_hostap_interface_attach(&context[i] /*OUT*/, dwpalService[i].radioName, NULL /*use one-way interface*/) == DWPAL_SUCCESS)
+				//PRINT_DEBUG("%s; try recover - VAPName= '%s'\n", __FUNCTION__, dwpalService[i]->VAPName);
+				if (dwpal_hostap_interface_attach(&context[i] /*OUT*/, dwpalService[i]->VAPName, NULL /*use one-way interface*/) == DWPAL_SUCCESS)
 				{
-					PRINT_DEBUG("%s; radioName= '%s' interface recovered successfully!\n", __FUNCTION__, dwpalService[i].radioName);
-					dwpalService[i].isConnectionEstablishNeeded = false;
+					PRINT_DEBUG("%s; VAPName= '%s' interface recovered successfully!\n", __FUNCTION__, dwpalService[i]->VAPName);
+					dwpalService[i]->isConnectionEstablishNeeded = false;
 				}
 				else
 				{
-					//PRINT_ERROR("%s; dwpal_hostap_interface_attach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalService[i].radioName);
+					//PRINT_ERROR("%s; dwpal_hostap_interface_attach (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalService[i]->VAPName);
 				}
 			}
 		}
@@ -126,7 +193,7 @@ static void interfaceExistCheckAndRecover(void)
 
 static void *listenerThreadStart(void *temp)
 {
-	int     i, highestValFD, ret, numOfServices = sizeof(dwpalService) / sizeof(DwpalService);
+	int     i, highestValFD, ret, numOfServices = sizeof(dwpalService) / sizeof(DwpalService *);
 	bool    isTimerExpired;
 	char    *msg;
 	size_t  msgLen, msgStringLen;
@@ -152,34 +219,34 @@ static void *listenerThreadStart(void *temp)
 				continue;
 			}
 
-			if (!strncmp(dwpalService[i].interfaceType, "hostap", 7))
+			if (!strncmp(dwpalService[i]->interfaceType, "hostap", 7))
 			{
-				if (dwpal_hostap_event_fd_get(context[i], &dwpalService[i].fd) == DWPAL_FAILURE)
+				if (dwpal_hostap_event_fd_get(context[i], &dwpalService[i]->fd) == DWPAL_FAILURE)
 				{
-					/*PRINT_ERROR("%s; dwpal_hostap_event_fd_get returned error ==> cont. (serviceName= '%s', radioName= '%s')\n",
-					       __FUNCTION__, dwpalService[i].serviceName, dwpalService[i].radioName);*/
+					/*PRINT_ERROR("%s; dwpal_hostap_event_fd_get returned error ==> cont. (VAPName= '%s')\n",
+					       __FUNCTION__, dwpalService[i]->VAPName);*/
 					continue;
 				}
 
-				if (dwpalService[i].fd > 0)
+				if (dwpalService[i]->fd > 0)
 				{
-					FD_SET(dwpalService[i].fd, &rfds);
-					highestValFD = (dwpalService[i].fd > highestValFD)? dwpalService[i].fd : highestValFD;  /* find the highest value fd */
+					FD_SET(dwpalService[i]->fd, &rfds);
+					highestValFD = (dwpalService[i]->fd > highestValFD)? dwpalService[i]->fd : highestValFD;  /* find the highest value fd */
 				}
 			}
-			else if (!strncmp(dwpalService[i].interfaceType, "Driver", 7))
+			else if (!strncmp(dwpalService[i]->interfaceType, "Driver", 7))
 			{
-				if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i].fd) == DWPAL_FAILURE)
+				if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i]->fd) == DWPAL_FAILURE)
 				{
-					/*PRINT_ERROR("%s; dwpal_driver_nl_fd_get returned error ==> cont. (serviceName= '%s', radioName= '%s')\n",
-					       __FUNCTION__, dwpalService[i].serviceName, dwpalService[i].radioName);*/
+					/*PRINT_ERROR("%s; dwpal_driver_nl_fd_get returned error ==> cont. (VAPName= '%s')\n",
+					       __FUNCTION__, dwpalService[i].VAPName);*/
 					continue;
 				}
 
-				if (dwpalService[i].fd > 0)
+				if (dwpalService[i]->fd > 0)
 				{
-					FD_SET(dwpalService[i].fd, &rfds);
-					highestValFD = (dwpalService[i].fd > highestValFD)? dwpalService[i].fd : highestValFD;  /* find the highest value fd */
+					FD_SET(dwpalService[i]->fd, &rfds);
+					highestValFD = (dwpalService[i]->fd > highestValFD)? dwpalService[i]->fd : highestValFD;  /* find the highest value fd */
 				}
 			}
 		}
@@ -202,14 +269,20 @@ static void *listenerThreadStart(void *temp)
 
 		for (i=0; i < numOfServices; i++)
 		{
-			if (!strncmp(dwpalService[i].interfaceType, "hostap", 7))
+			/* In case that there is no valid context, continue... */
+			if (context[i] == NULL)
 			{
-				if (dwpalService[i].fd > 0)
+				continue;
+			}
+
+			if (!strncmp(dwpalService[i]->interfaceType, "hostap", 7))
+			{
+				if (dwpalService[i]->fd > 0)
 				{
-					if (FD_ISSET(dwpalService[i].fd, &rfds))
+					if (FD_ISSET(dwpalService[i]->fd, &rfds))
 					{
-						/*PRINT_DEBUG("%s; event received; interfaceType= '%s', radioName= '%s', serviceName= '%s'\n",
-						       __FUNCTION__, dwpalService[i].interfaceType, dwpalService[i].radioName, dwpalService[i].serviceName);*/
+						/*PRINT_DEBUG("%s; event received; interfaceType= '%s', VAPName= '%s'\n",
+						       __FUNCTION__, dwpalService[i]->interfaceType, dwpalService[i]->VAPName);*/
 
 						isTimerExpired = false;
 
@@ -226,8 +299,8 @@ static void *listenerThreadStart(void *temp)
 
 						if (dwpal_hostap_event_get(context[i], msg /*OUT*/, &msgLen /*IN/OUT*/, opCode /*OUT*/) == DWPAL_FAILURE)
 						{
-							PRINT_ERROR("%s; dwpal_hostap_event_get ERROR; radioName= '%s', serviceName= '%s', msgLen= %d\n",
-							       __FUNCTION__, dwpalService[i].radioName, dwpalService[i].serviceName, msgLen);
+							PRINT_ERROR("%s; dwpal_hostap_event_get ERROR; VAPName= '%s', msgLen= %d\n",
+							       __FUNCTION__, dwpalService[i]->VAPName, msgLen);
 						}
 						else
 						{
@@ -240,7 +313,7 @@ static void *listenerThreadStart(void *temp)
 							//PRINT_DEBUG("%s; opCode= '%s', msg= '%s'\n", __FUNCTION__, opCode, msg);
 							if (strncmp(opCode, "", 1))
 							{
-								dwpalService[i].hostapEventCallback(dwpalService[i].radioName, opCode, msg, msgStringLen);
+								dwpalService[i]->hostapEventCallback(dwpalService[i]->VAPName, opCode, msg, msgStringLen);
 							}
 						}
 
@@ -248,27 +321,27 @@ static void *listenerThreadStart(void *temp)
 					}
 				}
 			}
-			else if (!strncmp(dwpalService[i].interfaceType, "Driver", 7))
+			else if (!strncmp(dwpalService[i]->interfaceType, "Driver", 7))
 			{
-				if (dwpalService[i].fd > 0)
+				if (dwpalService[i]->fd > 0)
 				{
-					if (FD_ISSET(dwpalService[i].fd, &rfds))
+					if (FD_ISSET(dwpalService[i]->fd, &rfds))
 					{
-						/*PRINT_DEBUG("%s; event received; interfaceType= '%s', radioName= '%s', serviceName= '%s'\n",
-						       __FUNCTION__, dwpalService[i].interfaceType, dwpalService[i].radioName, dwpalService[i].serviceName);*/
+						/*PRINT_DEBUG("%s; event received; interfaceType= '%s', VAPName= '%s'\n",
+						       __FUNCTION__, dwpalService[i]->interfaceType, dwpalService[i]->VAPName);*/
 
 						isTimerExpired = false;
 
-						if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i].fd) == DWPAL_FAILURE)
+						if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i]->fd) == DWPAL_FAILURE)
 						{
-							/*PRINT_ERROR("%s; dwpal_driver_nl_fd_get returned error ==> cont. (serviceName= '%s', radioName= '%s')\n",
-								   __FUNCTION__, dwpalService[i].serviceName, dwpalService[i].radioName);*/
+							/*PRINT_ERROR("%s; dwpal_driver_nl_fd_get returned error ==> cont. (VAPName= '%s')\n",
+								   __FUNCTION__, dwpalService[i]->VAPName);*/
 							continue;
 						}
 
-						if (dwpal_driver_nl_msg_get(context[i], dwpalService[i].nlEventCallback) == DWPAL_FAILURE)
+						if (dwpal_driver_nl_msg_get(context[i], dwpalService[i]->nlEventCallback) == DWPAL_FAILURE)
 						{
-							PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR; serviceName= '%s'\n", __FUNCTION__, dwpalService[i].serviceName);
+							PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR\n", __FUNCTION__);
 						}
 					}
 				}
@@ -286,7 +359,7 @@ static void *listenerThreadStart(void *temp)
 }
 
 
-static DWPAL_Ret listenerThreadCreate(void)
+static DWPAL_Ret listenerThreadCreate(pthread_t *thread_id)
 {
 	int            ret;
 	DWPAL_Ret      dwpalRet = DWPAL_SUCCESS;
@@ -313,7 +386,7 @@ static DWPAL_Ret listenerThreadCreate(void)
 	if (dwpalRet == DWPAL_SUCCESS)
 	{
 		PRINT_DEBUG("%s; call pthread_create\n", __FUNCTION__);
-		ret = pthread_create(&thread_id, &attr, &listenerThreadStart, NULL /*can be used to send params*/);
+		ret = pthread_create(thread_id, &attr, &listenerThreadStart, NULL /*can be used to send params*/);
 		if (ret != 0)
 		{
 			PRINT_ERROR("%s; pthread_create ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
@@ -327,7 +400,7 @@ static DWPAL_Ret listenerThreadCreate(void)
 			/* Causing the thread to be joined with the main process;
 			   meaning, the process will suspend due to the thread suspend.
 			   Otherwise, when process ends, the thread ends as well (although it is suspended and waiting ) */
-			ret = pthread_join(thread_id, &res);
+			ret = pthread_join(*thread_id, &res);
 			if (ret != 0)
 			{
 				PRINT_ERROR("%s; pthread_join ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
@@ -347,7 +420,47 @@ static DWPAL_Ret listenerThreadCreate(void)
 		dwpalRet = DWPAL_FAILURE;
 	}
 
+	/* sleep for 100 ms - it is needed in case of a loop of thread create/cancel */
+	usleep(100000 /*micro-sec*/);
+
 	return dwpalRet;
+}
+
+
+static DWPAL_Ret listenerThreadSet(DwpalThreadOperation threadOperation)
+{
+	int ret;
+	static pthread_t thread_id = (pthread_t)0;
+
+	switch (threadOperation)
+	{
+		case THREAD_CREATE:
+			if (thread_id == 0)
+			{
+				return listenerThreadCreate(&thread_id);
+			}
+			break;
+
+		case THREAD_CANCEL:
+			if (thread_id != 0)
+			{
+				if ( (ret = pthread_cancel(thread_id)) != 0 )
+				{
+					PRINT_ERROR("%s; pthread_attr_destroy ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+					return DWPAL_FAILURE;
+				}
+
+				thread_id = 0;
+			}
+			break;
+
+		default:
+			PRINT_ERROR("%s; threadOperation (%d) not supported ==> Abort!\n", __FUNCTION__, threadOperation);
+			return DWPAL_FAILURE;
+			break;
+	}
+
+	return DWPAL_SUCCESS;
 }
 
 
@@ -362,13 +475,13 @@ DWPAL_Ret dwpal_ext_driver_nl_cmd_send(char *ifname, unsigned int nl80211Command
 		PRINT_DEBUG("%s; vendorData[%d]= 0x%x\n", __FUNCTION__, i, vendorData[i]);
 	}
 
-	if (radioInterfaceIndexGet("Driver", "ALL", &idx) == DWPAL_FAILURE)
+	if (interfaceIndexGet("Driver", "ALL", &idx) == DWPAL_INTERFACE_IS_DOWN)
 	{
-		PRINT_ERROR("%s; radioInterfaceIndexGet returned ERROR ==> Abort!\n", __FUNCTION__);
-		return DWPAL_FAILURE;
+		PRINT_ERROR("%s; interfaceIndexGet returned ERROR ==> Abort!\n", __FUNCTION__);
+		return DWPAL_INTERFACE_IS_DOWN;
 	}
 
-	PRINT_DEBUG("%s; radioInterfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+	PRINT_DEBUG("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
 	return dwpal_driver_nl_cmd_send(context[idx],
 	                                ifname,
@@ -384,13 +497,20 @@ DWPAL_Ret dwpal_ext_driver_nl_detach(void)
 {
 	int idx;
 
-	if (radioInterfaceIndexGet("Driver", "ALL", &idx) == DWPAL_FAILURE)
+	if (interfaceIndexGet("Driver", "ALL", &idx) == DWPAL_INTERFACE_IS_DOWN)
 	{
-		PRINT_ERROR("%s; radioInterfaceIndexGet returned ERROR ==> Abort!\n", __FUNCTION__);
-		return DWPAL_FAILURE;
+		PRINT_ERROR("%s; interfaceIndexGet returned ERROR ==> Abort!\n", __FUNCTION__);
+		return DWPAL_INTERFACE_IS_DOWN;
 	}
 
-	PRINT_DEBUG("%s; radioInterfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+	PRINT_DEBUG("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+
+	/* dealocate the interface */
+	free((void *)dwpalService[idx]);
+	dwpalService[idx] = NULL;
+
+	/* Cancel the listener thread, if it does exist */
+	listenerThreadSet(THREAD_CANCEL);
 
 	if (dwpal_driver_nl_detach(&context[idx]) == DWPAL_FAILURE)
 	{
@@ -398,7 +518,11 @@ DWPAL_Ret dwpal_ext_driver_nl_detach(void)
 		return DWPAL_FAILURE;
 	}
 
-	dwpalService[idx].nlEventCallback = NULL;
+	if (isAnyInterfaceActive())
+	{ /* There are still active interfaces */
+		/* Create the listener thread, if it does NOT exist yet */
+		listenerThreadSet(THREAD_CREATE);
+	}
 
 	return DWPAL_SUCCESS;
 }
@@ -414,13 +538,16 @@ DWPAL_Ret dwpal_ext_driver_nl_attach(DwpalExtNlEventCallback nlEventCallback)
 		return DWPAL_FAILURE;
 	}
 
-	if (radioInterfaceIndexGet("Driver", "ALL", &idx) == DWPAL_FAILURE)
+	if (interfaceIndexCreate("Driver", "ALL", &idx) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; radioInterfaceIndexGet returned ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; interfaceIndexCreate returned ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; radioInterfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+	PRINT_DEBUG("%s; interfaceIndexCreate returned idx= %d\n", __FUNCTION__, idx);
+
+	/* Cancel the listener thread, if it does exist */
+	listenerThreadSet(THREAD_CANCEL);
 
 	if (dwpal_driver_nl_attach(&context[idx] /*OUT*/) == DWPAL_FAILURE)
 	{
@@ -428,43 +555,34 @@ DWPAL_Ret dwpal_ext_driver_nl_attach(DwpalExtNlEventCallback nlEventCallback)
 		return DWPAL_FAILURE;
 	}
 
-	dwpalService[idx].nlEventCallback = nlEventCallback;
+	dwpalService[idx]->nlEventCallback = nlEventCallback;
 
 	/* Create the listener thread, if it does NOT exist yet */
-	if (thread_id == 0)
-	{
-		PRINT_DEBUG("%s; CALLING listenerThreadCreate()\n", __FUNCTION__);
-		if (listenerThreadCreate() == DWPAL_FAILURE)
-		{
-			PRINT_ERROR("%s; listener thread failed ==> Abort!\n", __FUNCTION__);
-			return DWPAL_FAILURE;
-		}
-		PRINT_DEBUG("%s; return from listenerThreadCreate()\n", __FUNCTION__);
-	}
+	listenerThreadSet(THREAD_CREATE);
 
 	return DWPAL_SUCCESS;
 }
 
 
-DWPAL_Ret dwpal_ext_hostap_cmd_send(char *radioName, char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply /*OUT*/, size_t *replyLen /*IN/OUT*/)
+DWPAL_Ret dwpal_ext_hostap_cmd_send(char *VAPName, char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply /*OUT*/, size_t *replyLen /*IN/OUT*/)
 {
 	int idx;
 
-	PRINT_DEBUG("%s; radioName= '%s', cmdHeader= '%s'\n", __FUNCTION__, radioName, cmdHeader);
+	PRINT_DEBUG("%s; VAPName= '%s', cmdHeader= '%s'\n", __FUNCTION__, VAPName, cmdHeader);
 
-	if (radioName == NULL)
+	if (VAPName == NULL)
 	{
-		PRINT_ERROR("%s; radioName is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	if (radioInterfaceIndexGet("hostap", radioName, &idx) == DWPAL_FAILURE)
+	if (interfaceIndexGet("hostap", VAPName, &idx) == DWPAL_INTERFACE_IS_DOWN)
 	{
-		PRINT_ERROR("%s; radioInterfaceIndexGet (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, radioName);
-		return DWPAL_FAILURE;
+		PRINT_ERROR("%s; interfaceIndexGet (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
+		return DWPAL_INTERFACE_IS_DOWN;
 	}
 
-	PRINT_DEBUG("%s; radioInterfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+	PRINT_DEBUG("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
 	if (context[idx] == NULL)
 	{
@@ -472,9 +590,9 @@ DWPAL_Ret dwpal_ext_hostap_cmd_send(char *radioName, char *cmdHeader, FieldsToCm
 		return DWPAL_FAILURE;
 	}
 
-	if (dwpalService[idx].isConnectionEstablishNeeded == true)
+	if (dwpalService[idx]->isConnectionEstablishNeeded == true)
 	{
-		PRINT_ERROR("%s; interface is being reconnected, but still NOT ready ==> Abort!\n", __FUNCTION__, idx);
+		PRINT_ERROR("%s; interface is being reconnected, but still NOT ready ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -488,23 +606,27 @@ DWPAL_Ret dwpal_ext_hostap_cmd_send(char *radioName, char *cmdHeader, FieldsToCm
 }
 
 
-DWPAL_Ret dwpal_ext_hostap_interface_detach(char *radioName)
+DWPAL_Ret dwpal_ext_hostap_interface_detach(char *VAPName)
 {
 	int idx;
 
-	if (radioName == NULL)
+	if (VAPName == NULL)
 	{
-		PRINT_ERROR("%s; radioName is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	if (radioInterfaceIndexGet("hostap", radioName, &idx) == DWPAL_FAILURE)
+	if (interfaceIndexGet("hostap", VAPName, &idx) == DWPAL_INTERFACE_IS_DOWN)
 	{
-		PRINT_ERROR("%s; radioInterfaceIndexGet (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, radioName);
-		return DWPAL_FAILURE;
+		PRINT_ERROR("%s; interfaceIndexGet (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
+		return DWPAL_INTERFACE_IS_DOWN;
 	}
 
-	PRINT_DEBUG("%s; radioInterfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+	PRINT_DEBUG("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+
+	/* dealocate the interface */
+	free((void *)dwpalService[idx]);
+	dwpalService[idx] = NULL;
 
 	if (context[idx] == NULL)
 	{
@@ -512,27 +634,32 @@ DWPAL_Ret dwpal_ext_hostap_interface_detach(char *radioName)
 		return DWPAL_FAILURE;
 	}
 
+	/* Cancel the listener thread, if it does exist */
+	listenerThreadSet(THREAD_CANCEL);
+
 	if (dwpal_hostap_interface_detach(&context[idx]) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_hostap_interface_detach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, radioName);
+		PRINT_ERROR("%s; dwpal_hostap_interface_detach (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 		return DWPAL_FAILURE;
 	}
 
-	dwpalService[idx].fd = -1;
-	dwpalService[idx].isConnectionEstablishNeeded = false;
-	dwpalService[idx].hostapEventCallback = NULL;
+	if (isAnyInterfaceActive())
+	{ /* There are still active interfaces */
+		/* Create the listener thread, if it does NOT exist yet */
+		listenerThreadSet(THREAD_CREATE);
+	}
 
 	return DWPAL_SUCCESS;
 }
 
 
-DWPAL_Ret dwpal_ext_hostap_interface_attach(char *radioName, DwpalExtHostapEventCallback hostapEventCallback)
+DWPAL_Ret dwpal_ext_hostap_interface_attach(char *VAPName, DwpalExtHostapEventCallback hostapEventCallback)
 {
 	int idx;
 
-	if (radioName == NULL)
+	if (VAPName == NULL)
 	{
-		PRINT_ERROR("%s; radioName is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -542,35 +669,33 @@ DWPAL_Ret dwpal_ext_hostap_interface_attach(char *radioName, DwpalExtHostapEvent
 		return DWPAL_FAILURE;
 	}
 
-	if (radioInterfaceIndexGet("hostap", radioName, &idx) == DWPAL_FAILURE)
+	if (interfaceIndexCreate("hostap", VAPName, &idx) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; radioInterfaceIndexGet (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, radioName);
+		PRINT_ERROR("%s; interfaceIndexCreate (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; radioInterfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+	PRINT_DEBUG("%s; interfaceIndexCreate returned idx= %d\n", __FUNCTION__, idx);
 
-	if (dwpal_hostap_interface_attach(&context[idx] /*OUT*/, radioName, NULL /*use one-way interface*/) == DWPAL_FAILURE)
+	/* Cancel the listener thread, if it does exist */
+	listenerThreadSet(THREAD_CANCEL);
+
+	if (dwpal_hostap_interface_attach(&context[idx] /*OUT*/, VAPName, NULL /*use one-way interface*/) == DWPAL_FAILURE)
 	{
-		PRINT_DEBUG("%s; dwpal_hostap_interface_attach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, radioName);
+		PRINT_DEBUG("%s; dwpal_hostap_interface_attach (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 
 		/* in this case, continue and try to establish the connection later on */
-		dwpalService[idx].isConnectionEstablishNeeded = true;
+		dwpalService[idx]->isConnectionEstablishNeeded = true;
+	}
+	else
+	{
+		dwpalService[idx]->isConnectionEstablishNeeded = false;
 	}
 
-	dwpalService[idx].hostapEventCallback = hostapEventCallback;
+	dwpalService[idx]->hostapEventCallback = hostapEventCallback;
 
 	/* Create the listener thread, if it does NOT exist yet */
-	if (thread_id == 0)
-	{
-		PRINT_DEBUG("%s; CALLING listenerThreadCreate()\n", __FUNCTION__);
-		if (listenerThreadCreate() == DWPAL_FAILURE)
-		{
-			PRINT_ERROR("%s; listener thread failed ==> Abort!\n", __FUNCTION__);
-			return DWPAL_FAILURE;
-		}
-		PRINT_DEBUG("%s; return from listenerThreadCreate()\n", __FUNCTION__);
-	}
+	listenerThreadSet(THREAD_CREATE);
 
 	return DWPAL_SUCCESS;
 }

@@ -15,7 +15,8 @@
 #define HOSTAPD_TO_DWPAL_MSG_LENGTH            (4096 * 3)
 #define DWPAL_TO_HOSTAPD_MSG_LENGTH            512
 #define DWPAL_CLI_LINE_STRING_LENGTH           4096
-#define DWPAL_RADIO_NAME_STRING_LENGTH         6
+#define DWPAL_INTERFACE_TYPE_STRING_LENGTH     7
+#define DWPAL_VAP_NAME_STRING_LENGTH           9
 #define DWPAL_OPERATING_MODE_STRING_LENGTH     8
 #define DWPAL_WPA_CTRL_STRING_LENGTH           32
 #define DWPAL_GENERAL_STRING_LENGTH            64
@@ -30,7 +31,8 @@ typedef enum
 	DWPAL_FAILURE = -1,
 	DWPAL_SUCCESS = 0,
 	DWPAL_NO_PENDING_MESSAGES,
-	DWPAL_MISSING_PARAM
+	DWPAL_MISSING_PARAM,
+	DWPAL_INTERFACE_IS_DOWN
 } DWPAL_Ret;
 
 typedef void (*DWPAL_wpaCtrlEventCallback)(char *msg, size_t len);  /* callback function for hostapd received events while command is being sent; can be NULL */
@@ -60,7 +62,7 @@ typedef struct
 	size_t           *numOfValidArgs;  /*OUT*/
 	ParamParsingType parsingType;
 	const char       *stringToSearch;
-	size_t           numOfArrayArgs;
+	size_t           totalSizeOfArg;
 } FieldsToParse;
 
 typedef struct
@@ -94,6 +96,6 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 DWPAL_Ret dwpal_hostap_event_fd_get(void *context, int *fd /*OUT*/);
 DWPAL_Ret dwpal_hostap_is_interface_exist(void *context, bool *isExist /*OUT*/);
 DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/);
-DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radioName, DWPAL_wpaCtrlEventCallback wpaCtrlEventCallback);
+DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPName, DWPAL_wpaCtrlEventCallback wpaCtrlEventCallback);
 
 #endif  //__DWPAL_H_

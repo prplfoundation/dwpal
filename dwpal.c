@@ -55,7 +55,7 @@ typedef struct
 	{
 		struct
 		{
-			char   radioName[DWPAL_RADIO_NAME_STRING_LENGTH]; /* "wlan0", "wlan1", ..., "wlan5" */
+			char   VAPName[DWPAL_VAP_NAME_STRING_LENGTH]; /* "wlan0", "wlan0.1", "wlan1", "wlan2.2", ..., "wlan5", ... */
 			char   operationMode[DWPAL_OPERATING_MODE_STRING_LENGTH];
 			char   wpaCtrlName[DWPAL_WPA_CTRL_STRING_LENGTH];
 			struct wpa_ctrl *wpaCtrlPtr;
@@ -107,7 +107,7 @@ static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 	return (int)DWPAL_SUCCESS;
 }
 
-static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int numOfArrayArgs, char fieldValue[] /*OUT*/)
+static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int totalSizeOfArg, char fieldValue[] /*OUT*/)
 {
 	char *param;
 	char *localBuf = NULL;
@@ -133,14 +133,14 @@ static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int 
 
 	if (fieldValue != NULL)
 	{
-		if (strnlen_s(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) > (size_t)(numOfArrayArgs - 1))
+		if (strnlen_s(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) > (size_t)(totalSizeOfArg - 1))
 		{
 			if (localBuf != NULL)
 			{
 				free((void *)localBuf);
 			}
 
-			PRINT_ERROR("%s; param ('%s') length (%d) is higher than allocated size (%d) ==> Abort!\n", __FUNCTION__, param, strnlen_s(param, numOfArrayArgs), numOfArrayArgs-1);
+			PRINT_ERROR("%s; param ('%s') length (%d) is higher than allocated size (%d) ==> Abort!\n", __FUNCTION__, param, strnlen_s(param, totalSizeOfArg), totalSizeOfArg-1);
 			return false;
 		}
 
@@ -156,7 +156,7 @@ static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int 
 }
 
 
-static bool arrayValuesGet(char *stringOfValues, size_t numOfArrayArgs, ParamParsingType paramParsingType, size_t *numOfValidArgs /*OUT*/, void *array /*OUT*/)
+static bool arrayValuesGet(char *stringOfValues, size_t totalSizeOfArg, ParamParsingType paramParsingType, size_t *numOfValidArgs /*OUT*/, void *array /*OUT*/)
 {
 	/* fill in the output array with list of integer elements (from decimal/hex base), for example:
 	   "SupportedRates=2 4 11 22 12 18 24 36 48 72 96 108" or "HT_MCS=FF FF FF 00 00 00 00 00 00 00 C2 01 01 00 00 00"
@@ -179,7 +179,7 @@ static bool arrayValuesGet(char *stringOfValues, size_t numOfArrayArgs, ParamPar
 			break;
 		}
 
-		if (idx < (int)numOfArrayArgs)
+		if (idx < (int)totalSizeOfArg)
 		{
 			if (numOfValidArgs != NULL)
 			{
@@ -205,9 +205,9 @@ static bool arrayValuesGet(char *stringOfValues, size_t numOfArrayArgs, ParamPar
 		idx++;
 	} while (idx < DWPAL_MAX_NUM_OF_ELEMENTS);  /* allow up to 512 elements per field (array) */
 
-	if (idx >= (int)numOfArrayArgs)
+	if (idx >= (int)totalSizeOfArg)
 	{
-		PRINT_ERROR("%s; actual number of arguments (%d) is bigger/equal then numOfArrayArgs (%d) ==> Abort!\n", __FUNCTION__, idx, numOfArrayArgs);
+		PRINT_ERROR("%s; actual number of arguments (%d) is bigger/equal then totalSizeOfArg (%d) ==> Abort!\n", __FUNCTION__, idx, totalSizeOfArg);
 		return false;
 	}
 
@@ -399,7 +399,7 @@ static bool isColumnOfFields(char *msg, char *endFieldName[])
 }
 
 
-static bool columnOfParamsToRawConvert(char *msg, size_t msgLen, char *endFieldName[])
+static bool columnOfParamsToRowConvert(char *msg, size_t msgLen, char *endFieldName[])
 {
 	char    *localMsg = strdup(msg), *lineMsg, *p2str;
 	rsize_t dmaxLen = (rsize_t)msgLen;
@@ -828,24 +828,24 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			switch (fieldsToParse[i].parsingType)
 			{
 				case DWPAL_STR_PARAM:
-					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].numOfArrayArgs == 0) )
+					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].totalSizeOfArg == 0) )
 					{
-						PRINT_ERROR("%s; Error; DWPAL_STR_PARAM must have positive value for numOfArrayArgs ==> Abort!\n", __FUNCTION__);
+						PRINT_ERROR("%s; Error; DWPAL_STR_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
 						return DWPAL_FAILURE;
 					}
 
-					sizeOfStruct += sizeof(char) * fieldsToParse[i].numOfArrayArgs;  /* array of characters (string) */
+					sizeOfStruct += sizeof(char) * fieldsToParse[i].totalSizeOfArg;  /* array of characters (string) */
 					//PRINT_DEBUG("%s; DWPAL_STR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_STR_ARRAY_PARAM:
-					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].numOfArrayArgs == 0) )
+					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].totalSizeOfArg == 0) )
 					{
-						PRINT_ERROR("%s; Error; DWPAL_STR_ARRAY_PARAM must have positive value for numOfArrayArgs ==> Abort!\n", __FUNCTION__);
+						PRINT_ERROR("%s; Error; DWPAL_STR_ARRAY_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
 						return DWPAL_FAILURE;
 					}
 
-					sizeOfStruct += fieldsToParse[i].numOfArrayArgs;
+					sizeOfStruct += fieldsToParse[i].totalSizeOfArg;
 					//PRINT_DEBUG("%s; DWPAL_STR_ARRAY_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
@@ -877,13 +877,13 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 
 				case DWPAL_INT_ARRAY_PARAM:
 				case DWPAL_INT_HEX_ARRAY_PARAM:
-					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].numOfArrayArgs == 0) )
+					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].totalSizeOfArg == 0) )
 					{
-						PRINT_ERROR("%s; Error; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM must have positive value for numOfArrayArgs ==> Abort!\n", __FUNCTION__);
+						PRINT_ERROR("%s; Error; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
 						return DWPAL_FAILURE;
 					}
 
-					sizeOfStruct += sizeof(int) * fieldsToParse[i].numOfArrayArgs;
+					sizeOfStruct += sizeof(int) * fieldsToParse[i].totalSizeOfArg;
 					//PRINT_DEBUG("%s; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
@@ -963,9 +963,9 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 	/* In case of a column, convert it to one raw */
 	if ( (ret == DWPAL_SUCCESS) && (isEndFieldNameAllocated) )
 	{
-		if (columnOfParamsToRawConvert(msg, msgLen , endFieldName) == false)
+		if (columnOfParamsToRowConvert(msg, msgLen , endFieldName) == false)
 		{
-			PRINT_ERROR("%s; columnOfParamsToRawConvert error ==> Abort!\n", __FUNCTION__);
+			PRINT_ERROR("%s; columnOfParamsToRowConvert error ==> Abort!\n", __FUNCTION__);
 			ret = DWPAL_FAILURE;
 		}
 	}
@@ -1000,7 +1000,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 						if (mandatoryFieldValueGet(localMsg /*will be NULL starting from 2nd param*/,
 						                           &dmaxLenMandatory,
 						                           &p2strMandatory,
-						                           (int)fieldsToParse[i].numOfArrayArgs,
+						                           (int)fieldsToParse[i].totalSizeOfArg,
 						                           (char *)field /*OUT*/) == false)
 						{
 							PRINT_ERROR("%s; mandatory is NULL ==> Abort!\n", __FUNCTION__);
@@ -1029,10 +1029,10 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 								(*(fieldsToParse[i].numOfValidArgs))++;
 							}
 
-							if ((strnlen_s(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1) > fieldsToParse[i].numOfArrayArgs)
+							if ((strnlen_s(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1) > fieldsToParse[i].totalSizeOfArg)
 							{
 								PRINT_ERROR("%s; string length (%d) is bigger the allocated string size (%d)\n",
-								            __FUNCTION__, strnlen_s(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, fieldsToParse[i].numOfArrayArgs);
+								            __FUNCTION__, strnlen_s(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, fieldsToParse[i].totalSizeOfArg);
 								ret = DWPAL_FAILURE;  /* longer string then allocated ==> Abort! */
 							}
 							else
@@ -1060,7 +1060,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
 					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
 					{
-						if (arrayValuesGet(stringOfValues, fieldsToParse[i].numOfArrayArgs, DWPAL_STR_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, (char *)field) == false)
+						if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_STR_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, (char *)field) == false)
 						{
 							PRINT_ERROR("%s; arrayValuesGet ERROR\n", __FUNCTION__);
 						}
@@ -1267,7 +1267,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
 					{
 						//PRINT_DEBUG("%s; [1] fieldsToParse[%d].numOfValidArgs= %d, stringOfValues= '%s'\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs), stringOfValues);
-						if (arrayValuesGet(stringOfValues, fieldsToParse[i].numOfArrayArgs, DWPAL_INT_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
+						if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_INT_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
 						{
 							PRINT_ERROR("%s; arrayValuesGet ERROR\n", __FUNCTION__);
 						}
@@ -1312,7 +1312,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
 					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
 					{
-						if (arrayValuesGet(stringOfValues, fieldsToParse[i].numOfArrayArgs, DWPAL_INT_HEX_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
+						if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_INT_HEX_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
 						{
 							PRINT_ERROR("%s; arrayValuesGet (stringToSearch= '%s') ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].stringToSearch);
 							ret = DWPAL_FAILURE; /* array of string detected, but getting its arguments failed ==> Abort! */
@@ -1403,7 +1403,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 		return DWPAL_FAILURE;
 	}
 
-	//PRINT_DEBUG("%s Entry; radioName= '%s', cmdHeader= '%s', replyLen= %d\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName, cmdHeader, *replyLen);
+	//PRINT_DEBUG("%s Entry; VAPName= '%s', cmdHeader= '%s', replyLen= %d\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName, cmdHeader, *replyLen);
 
 	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s", cmdHeader);
 
@@ -1594,34 +1594,34 @@ DWPAL_Ret dwpal_hostap_is_interface_exist(void *context, bool *isExist /*OUT*/)
 		return DWPAL_FAILURE;
 	}
 
-	//PRINT_DEBUG("%s; radioName= '%s'\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName);
+	//PRINT_DEBUG("%s; VAPName= '%s'\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 
 	*isExist = false;
 
-	if (((DWPAL_Context *)context)->interface.hostapd.radioName[0] == '\0')
+	if (((DWPAL_Context *)context)->interface.hostapd.VAPName[0] == '\0')
 	{
-		PRINT_ERROR("%s; invalid radio name ('%s') ==> Abort!\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName);
+		PRINT_ERROR("%s; invalid radio name ('%s') ==> Abort!\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		return DWPAL_FAILURE;
 	}
 
 	/* check if '/var/run/hostapd/wlanX' or '/var/run/wpa_supplicant/wlanX' exists */
-	snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", ((DWPAL_Context *)context)->interface.hostapd.radioName);
+	snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 	if (access(wpaCtrlName, F_OK) == 0)
 	{
-		//PRINT_DEBUG("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName);
+		//PRINT_DEBUG("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		*isExist = true;
 	}
 	else
 	{
-		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", ((DWPAL_Context *)context)->interface.hostapd.radioName);
+		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		if (access(wpaCtrlName, F_OK) == 0)
 		{
-			//PRINT_DEBUG("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName);
+			//PRINT_DEBUG("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 			*isExist = true;
 		}
 		else
 		{
-			PRINT_ERROR("%s; radio interface '%s' not present\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName);
+			PRINT_ERROR("%s; radio interface '%s' not present\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		}
 	}
 
@@ -1657,7 +1657,8 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 	{  /* Valid wpaCtrlEventCallback states that this is a two-way connection (for both command and events) */
 		if ((ret = wpa_ctrl_detach(localContext->interface.hostapd.wpaCtrlPtr)) != 0)
 		{
-			PRINT_ERROR("%s; wpa_ctrl_detach (radioName= '%s') returned ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName, ret);
+			PRINT_ERROR("%s; wpa_ctrl_detach (VAPName= '%s') returned ERROR (ret= %d) ==> Abort!\n",
+			            __FUNCTION__, localContext->interface.hostapd.VAPName, ret);
 			return DWPAL_FAILURE;
 		}
 	}
@@ -1672,7 +1673,8 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 
 		if ((ret = wpa_ctrl_detach(localContext->interface.hostapd.listenerWpaCtrlPtr)) != 0)
 		{
-			PRINT_ERROR("%s; wpa_ctrl_detach of listener (radioName= '%s') returned ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName, ret);
+			PRINT_ERROR("%s; wpa_ctrl_detach of listener (VAPName= '%s') returned ERROR (ret= %d) ==> Abort!\n",
+			            __FUNCTION__, localContext->interface.hostapd.VAPName, ret);
 			return DWPAL_FAILURE;
 		}
 		wpa_ctrl_close(localContext->interface.hostapd.listenerWpaCtrlPtr);
@@ -1695,12 +1697,12 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 }
 
 
-DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radioName, DWPAL_wpaCtrlEventCallback wpaCtrlEventCallback)
+DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPName, DWPAL_wpaCtrlEventCallback wpaCtrlEventCallback)
 {
 	DWPAL_Context *localContext;
 	char          wpaCtrlName[DWPAL_WPA_CTRL_STRING_LENGTH];
 
-	//PRINT_DEBUG("%s; radioName= '%s', wpaCtrlEventCallback= 0x%x\n", __FUNCTION__, radioName, (unsigned int)wpaCtrlEventCallback);
+	//PRINT_DEBUG("%s; VAPName= '%s', wpaCtrlEventCallback= 0x%x\n", __FUNCTION__, VAPName, (unsigned int)wpaCtrlEventCallback);
 
 	if (context == NULL)
 	{
@@ -1708,16 +1710,16 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 		return DWPAL_FAILURE;
 	}
 
-	if (radioName == NULL)
+	if (VAPName == NULL)
 	{
-		PRINT_ERROR("%s; radioName is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	/* Temporary due to two-way socket hostapd bug */
 	if (wpaCtrlEventCallback != NULL)
 	{  /* Valid wpaCtrlEventCallback states that this is a two-way connection (for both command and events) */
-		PRINT_ERROR("%s; currently, two-way connection (for '%s') is NOT supported - use one-way connection ==> Abort!\n", __FUNCTION__, radioName);
+		PRINT_ERROR("%s; currently, two-way connection (for '%s') is NOT supported - use one-way connection ==> Abort!\n", __FUNCTION__, VAPName);
 		return DWPAL_FAILURE;
 	}
 
@@ -1730,26 +1732,26 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 
 	localContext = (DWPAL_Context *)(*context);
 
-	strncpy((void *)(localContext->interface.hostapd.radioName), radioName, DWPAL_RADIO_NAME_STRING_LENGTH);
-	localContext->interface.hostapd.radioName[sizeof(localContext->interface.hostapd.radioName) - 1] = '\0';
+	strncpy((void *)(localContext->interface.hostapd.VAPName), VAPName, DWPAL_VAP_NAME_STRING_LENGTH);
+	localContext->interface.hostapd.VAPName[sizeof(localContext->interface.hostapd.VAPName) - 1] = '\0';
 	localContext->interface.hostapd.fd = -1;
 	localContext->interface.hostapd.wpaCtrlPtr = NULL;
 	localContext->interface.hostapd.wpaCtrlEventCallback = wpaCtrlEventCallback;
 
 	/* check if '/var/run/hostapd/wlanX' or '/var/run/wpa_supplicant/wlanX' exists, and update context's database */
-	snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", localContext->interface.hostapd.radioName);
+	snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", localContext->interface.hostapd.VAPName);
 	if (access(wpaCtrlName, F_OK) == 0)
 	{
-		//PRINT_DEBUG("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+		//PRINT_DEBUG("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 		strcpy_s(localContext->interface.hostapd.operationMode, 3, "AP");
 		strcpy_s(localContext->interface.hostapd.wpaCtrlName, strnlen_s(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
 	}
 	else
 	{
-		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", localContext->interface.hostapd.radioName);
+		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", localContext->interface.hostapd.VAPName);
 		if (access(wpaCtrlName, F_OK) == 0)
 		{
-			//PRINT_DEBUG("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+			//PRINT_DEBUG("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			strcpy_s(localContext->interface.hostapd.operationMode, 4, "STA");
 			strcpy_s(localContext->interface.hostapd.wpaCtrlName, strnlen_s(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
 		}
@@ -1758,7 +1760,7 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 			localContext->interface.hostapd.operationMode[0] = '\0';
 			localContext->interface.hostapd.wpaCtrlName[0] = '\0';
 
-			//PRINT_ERROR("%s; radio interface '%s' not present ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+			//PRINT_ERROR("%s; radio interface '%s' not present ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 	}
@@ -1766,20 +1768,20 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 	localContext->interface.hostapd.wpaCtrlPtr = wpa_ctrl_open(localContext->interface.hostapd.wpaCtrlName);
 	if (localContext->interface.hostapd.wpaCtrlPtr == NULL)
 	{
-		PRINT_ERROR("%s; wpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+		PRINT_ERROR("%s; wpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 		return DWPAL_FAILURE;
 	}
 
 	if (localContext->interface.hostapd.wpaCtrlEventCallback != NULL)
 	{  /* Valid wpaCtrlEventCallback states that this is a two-way connection (for both command and events) */
-		PRINT_DEBUG("%s; set up two-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+		PRINT_DEBUG("%s; set up two-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 
 		/* Reset listenerWpaCtrlPtr which used only in one-way connection */
 		localContext->interface.hostapd.listenerWpaCtrlPtr = NULL;
 
 		if (wpa_ctrl_attach(localContext->interface.hostapd.wpaCtrlPtr) != 0)
 		{
-			PRINT_ERROR("%s; wpa_ctrl_attach for '%s' failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+			PRINT_ERROR("%s; wpa_ctrl_attach for '%s' failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 
@@ -1788,16 +1790,16 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 	else
 	{  /* wpaCtrlEventCallback is NULL ==> turn on the event listener in an additional socket */
 		localContext->interface.hostapd.listenerWpaCtrlPtr = wpa_ctrl_open(localContext->interface.hostapd.wpaCtrlName);
-		PRINT_DEBUG("%s; set up one-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+		PRINT_DEBUG("%s; set up one-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 		if (localContext->interface.hostapd.listenerWpaCtrlPtr == NULL)
 		{
-			PRINT_ERROR("%s; listenerWpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+			PRINT_ERROR("%s; listenerWpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 
 		if (wpa_ctrl_attach(localContext->interface.hostapd.listenerWpaCtrlPtr) != 0)
 		{
-			PRINT_ERROR("%s; wpa_ctrl_attach for '%s' listener failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+			PRINT_ERROR("%s; wpa_ctrl_attach for '%s' listener failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 
