@@ -74,6 +74,17 @@ typedef struct
 } DWPAL_Context;
 
 
+
+/* Local static functions */
+
+static int no_seq_check(struct nl_msg *msg, void *arg)
+{
+	(void)msg;
+	(void)arg;
+	return NL_OK;
+}
+
+
 static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 {
 	DWPAL_Context *localContext = (DWPAL_Context *)(arg);
@@ -84,8 +95,17 @@ static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 	{
 		struct nlattr *attr;
 		struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+		struct nlattr *tb[NL80211_ATTR_MAX + 1];
 		unsigned char *data;
+		int vendor_subcmd = -1;
+		char ifname[100] = "\0";
 		int len;
+
+		nla_parse(tb,
+		          NL80211_ATTR_MAX,
+				  genlmsg_attrdata(gnlh, 0),
+				  genlmsg_attrlen(gnlh, 0),
+				  NULL);
 
 		attr = nla_find(genlmsg_attrdata(gnlh, 0),
 		                genlmsg_attrlen(gnlh, 0),
@@ -100,12 +120,23 @@ static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 		data = (unsigned char *) nla_data(attr);
 		len = nla_len(attr);
 
+		if ( (gnlh->cmd == NL80211_CMD_VENDOR) && (tb[NL80211_ATTR_VENDOR_SUBCMD] != NULL) )
+		{
+			vendor_subcmd = nla_get_u32(tb[NL80211_ATTR_VENDOR_SUBCMD]);
+		}
+
+		if (tb[NL80211_ATTR_IFINDEX] != NULL)
+		{
+			if_indextoname(nla_get_u32(tb[NL80211_ATTR_IFINDEX]), ifname);
+		}
+
 		/* Call the NL callback function */
-		localContext->interface.driver.nlEventCallback((size_t)len, data);
+		localContext->interface.driver.nlEventCallback(ifname, gnlh->cmd, vendor_subcmd, (size_t)len, data);
 	}
 
 	return (int)DWPAL_SUCCESS;
 }
+
 
 static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int totalSizeOfArg, char fieldValue[] /*OUT*/)
 {
@@ -447,8 +478,6 @@ static bool columnOfParamsToRowConvert(char *msg, size_t msgLen, char *endFieldN
 }
 
 
-/* Command APIs */
-
 
 /* Low Level APIs */
 
@@ -583,6 +612,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_nlEventCallback nlEventCallback)
 {
 	int res;
+	struct nl_cb *cb;
 	DWPAL_Context *localContext = (DWPAL_Context *)(context);
 
 	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
@@ -603,17 +633,20 @@ DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_nlEventCallback nlEventCa
 	localContext->interface.driver.nlEventCallback = nlEventCallback;
 
 	/* Connect the nl socket to its message callback function */
-	if (nl_socket_modify_cb(localContext->interface.driver.nlSocket,
-	                        NL_CB_VALID, NL_CB_CUSTOM,
-	                        nlInternalEventCallback,
-	                        context /* will be used in "arg" param of nlInternalEventCallback */) < 0)
+	cb = nl_cb_alloc(NL_CB_DEFAULT);
+
+	if (cb == NULL)
 	{
-		PRINT_ERROR("%s; nl_socket_modify_cb ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; failed to allocate netlink callbacks ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
+	nl_cb_set(cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM, no_seq_check, NULL);
+	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, nlInternalEventCallback, context);
+
+
 	/* will trigger nlEventCallback() function call */
-	res = nl_recvmsgs_default(localContext->interface.driver.nlSocket);
+	res = nl_recvmsgs(localContext->interface.driver.nlSocket, cb);
 	if (res < 0)
 	{
 		PRINT_ERROR("%s; nl_recvmsgs_default returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
@@ -682,11 +715,8 @@ DWPAL_Ret dwpal_driver_nl_detach(void **context /*IN/OUT*/)
 
 DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 {
-	int res = 1;
+	int res = 1, mcid;
 	DWPAL_Context *localContext;
-#if 0
-	int family, bcast_group;
-#endif
 
 	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
 
@@ -764,16 +794,14 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 	}
 	PRINT_DEBUG("%s; driver.nl80211_id= %d\n", __FUNCTION__, localContext->interface.driver.nl80211_id);
 
-#if 0
-	/* Ask kernel to resolve family name to family id */
-	family = genl_ctrl_resolve(localContext->interface.driver.nlSocket, MTLK_GENL_FAMILY_NAME);
+	mcid = genl_ctrl_resolve_grp(localContext->interface.driver.nlSocket, "nl80211", "vendor");
 
-	bcast_group = family + (NETLINK_FAPI_GROUP - 1);
-	if (nl_socket_add_membership(localContext->interface.driver.nlSocket, bcast_group) < 0)
+	PRINT_DEBUG("%s; mcid= %d\n", __FUNCTION__, mcid);
+
+	if (nl_socket_add_membership(localContext->interface.driver.nlSocket, mcid) < 0)
 	{
 		PRINT_DEBUG("%s; nl_socket_add_membership ERROR ==> Abort!\n", __FUNCTION__);
 	}
-#endif
 
 	PRINT_DEBUG("%s; driver.nlSocket= 0x%x, driver.nlEventCallback= 0x%x, driver.nl80211_id= %d\n",
 	       __FUNCTION__, (unsigned int)localContext->interface.driver.nlSocket, (unsigned int)localContext->interface.driver.nlEventCallback, localContext->interface.driver.nl80211_id);

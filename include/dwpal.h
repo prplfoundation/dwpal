@@ -36,7 +36,7 @@ typedef enum
 } DWPAL_Ret;
 
 typedef void (*DWPAL_wpaCtrlEventCallback)(char *msg, size_t len);  /* callback function for hostapd received events while command is being sent; can be NULL */
-typedef DWPAL_Ret (*DWPAL_nlEventCallback)(size_t len, unsigned char *data);  /* callback function for Driver (via nl) events */
+typedef DWPAL_Ret (*DWPAL_nlEventCallback)(char* ifname, int event, int subevent, size_t len, unsigned char *data);  /* callback function for Driver (via nl) events */
 
 typedef enum
 {
