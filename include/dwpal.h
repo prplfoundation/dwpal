@@ -10,7 +10,7 @@
 
 #include "nl80211_copy.h"  // https://gts-chd.intel.com/projects/SW_WAVE/repos/iwlwav-hostap/browse/src/drivers/nl80211_copy.h?at=refs%2Fheads%2Fiwlwav_intel_ip_ax
 #include "vendor_cmds_copy.h"  // https://gts-chd.intel.com/projects/SW_WAVE/repos/iwlwav-dev/browse/drivers/net/wireless/intel/iwlwav/wireless/driver/vendor_cmds.h
-
+#include "wpa_ctrl.h"
 
 #define HOSTAPD_TO_DWPAL_MSG_LENGTH            (4096 * 3)
 #define DWPAL_TO_HOSTAPD_MSG_LENGTH            512
@@ -23,7 +23,19 @@
 #define DWPAL_OPCODE_STRING_LENGTH             64
 #define DRIVER_NL_TO_DWPAL_MSG_LENGTH          4096
 #define DWPAL_FIELD_NAME_LENGTH                128
-#define HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH   512
+#define HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH   1024
+
+#if defined YOCTO
+#define STRTOK_S(...)       puma_strtok_s(__VA_ARGS__)
+#define STRNLEN_S(...)      puma_strnlen_s(__VA_ARGS__)
+#define STRCPY_S(...)      puma_strcpy_s(__VA_ARGS__)
+#define STRNCPY_S(...)      puma_strncpy_s(__VA_ARGS__)
+#else
+#define STRTOK_S(...)       strtok_s(__VA_ARGS__)
+#define STRNLEN_S(...)      strnlen_s(__VA_ARGS__)
+#define STRCPY_S(...)       strcpy_s(__VA_ARGS__)
+#define STRNCPY_S(...)      strncpy_s(__VA_ARGS__)
+#endif
 
 
 typedef enum

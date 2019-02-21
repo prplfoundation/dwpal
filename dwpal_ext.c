@@ -1,6 +1,6 @@
-/*  ***************************************************************************** 
+/*  *****************************************************************************
  *         File Name    : dwpal_ext.c                             	            *
- *         Description  : D-WPAL Extender control interface 		            * 
+ *         Description  : D-WPAL Extender control interface 		            *
  *                                                                              *
  *  *****************************************************************************/
 
@@ -104,8 +104,8 @@ static DWPAL_Ret interfaceIndexCreate(char *interfaceType, char *VAPName, int *i
 				return DWPAL_FAILURE;
 			}
 
-			strcpy_s(dwpalService[i]->interfaceType, sizeof(dwpalService[i]->interfaceType), interfaceType);
-			strcpy_s(dwpalService[i]->VAPName, sizeof(dwpalService[i]->VAPName), VAPName);
+			STRCPY_S(dwpalService[i]->interfaceType, sizeof(dwpalService[i]->interfaceType), interfaceType);
+			STRCPY_S(dwpalService[i]->VAPName, sizeof(dwpalService[i]->VAPName), VAPName);
 
 			*idx = i;
 			return DWPAL_SUCCESS;
@@ -167,7 +167,7 @@ static void interfaceExistCheckAndRecover(void)
 					PRINT_ERROR("%s; VAPName= '%s' interface needs to be recovered\n", __FUNCTION__, dwpalService[i]->VAPName);
 					dwpalService[i]->isConnectionEstablishNeeded = true;
 					dwpalService[i]->fd = -1;
-					
+
 					/* note: dwpalService[i]->hostapEventCallback should be kept for usage after recovery */
 				}
 			}
@@ -180,6 +180,7 @@ static void interfaceExistCheckAndRecover(void)
 				{
 					PRINT_DEBUG("%s; VAPName= '%s' interface recovered successfully!\n", __FUNCTION__, dwpalService[i]->VAPName);
 					dwpalService[i]->isConnectionEstablishNeeded = false;
+					dwpalService[i]->hostapEventCallback(dwpalService[i]->VAPName, "INTERFACE_RECONNECTED_OK", NULL, 0);
 				}
 				else
 				{
@@ -309,7 +310,7 @@ static void *listenerThreadStart(void *temp)
 //strcpy(msg, "<3>AP-STA-DISCONNECTED wlan0 14:d6:4d:ac:36:70");
 //strcpy(opCode, "AP-STA-CONNECTED");
 
-							msgStringLen = strnlen_s(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
+							msgStringLen = STRNLEN_S(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
 							//PRINT_DEBUG("%s; opCode= '%s', msg= '%s'\n", __FUNCTION__, opCode, msg);
 							if (strncmp(opCode, "", 1))
 							{
