@@ -12,7 +12,7 @@
 #include "dwpal.h"
 
 
-typedef int (*DwpalExtHostapEventCallback)(char *radioName, char *opCode, char *msg, size_t msgStringLen);
+typedef int (*DwpalExtHostapEventCallback)(char *VAPName, char *opCode, char *msg, size_t msgStringLen);
 typedef DWPAL_nlEventCallback DwpalExtNlEventCallback;  /* DWPAL_Ret DWPAL_nlEventCallback(size_t len, unsigned char *data); */
 
 
@@ -21,8 +21,8 @@ DWPAL_Ret dwpal_ext_driver_nl_cmd_send(char *ifname, unsigned int nl80211Command
 DWPAL_Ret dwpal_ext_driver_nl_detach(void);
 DWPAL_Ret dwpal_ext_driver_nl_attach(DwpalExtNlEventCallback nlEventCallback);
 
-DWPAL_Ret dwpal_ext_hostap_cmd_send(char *radioName, char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply, size_t *replyLen);
-DWPAL_Ret dwpal_ext_hostap_interface_detach(char *radioName);
-DWPAL_Ret dwpal_ext_hostap_interface_attach(char *radioName, DwpalExtHostapEventCallback eventCallback);
+DWPAL_Ret dwpal_ext_hostap_cmd_send(char *VAPName, char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply /*OUT*/, size_t *replyLen /*IN/OUT*/);
+DWPAL_Ret dwpal_ext_hostap_interface_detach(char *VAPName);
+DWPAL_Ret dwpal_ext_hostap_interface_attach(char *VAPName, DwpalExtHostapEventCallback eventCallback);
 
 #endif  //__DWPAL_EXT_H_

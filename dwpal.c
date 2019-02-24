@@ -19,9 +19,12 @@
 
 #include <net/if.h>
 
+#if defined YOCTO
+#include <puma_safe_libc.h>
+#else
 #include "safe_str_lib.h"
+#endif
 #include "dwpal.h"
-#include "wpa_ctrl.h"
 
 #define DWPAL_MAX_NUM_OF_ELEMENTS 512
 
@@ -35,6 +38,15 @@
 
 #define OUI_LTQ 0xAC9A96
 
+#if defined YOCTO_LOGGING
+#include "help_logging.h"
+#define PRINT_DEBUG(...)  LOGF_LOG_DEBUG(__VA_ARGS__)
+#define PRINT_ERROR(...)  LOGF_LOG_ERROR(__VA_ARGS__)
+#else
+#define PRINT_DEBUG(...)  printf(__VA_ARGS__)
+#define PRINT_ERROR(...)  printf(__VA_ARGS__)
+#endif
+
 
 typedef struct
 {
@@ -42,7 +54,7 @@ typedef struct
 	{
 		struct
 		{
-			char   radioName[DWPAL_RADIO_NAME_STRING_LENGTH]; /* "wlan0", "wlan1", ..., "wlan5" */
+			char   VAPName[DWPAL_VAP_NAME_STRING_LENGTH]; /* "wlan0", "wlan0.1", "wlan1", "wlan2.2", ..., "wlan5", ... */
 			char   operationMode[DWPAL_OPERATING_MODE_STRING_LENGTH];
 			char   wpaCtrlName[DWPAL_WPA_CTRL_STRING_LENGTH];
 			struct wpa_ctrl *wpaCtrlPtr;
@@ -61,18 +73,38 @@ typedef struct
 } DWPAL_Context;
 
 
+
+/* Local static functions */
+
+static int no_seq_check(struct nl_msg *msg, void *arg)
+{
+	(void)msg;
+	(void)arg;
+	return NL_OK;
+}
+
+
 static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 {
 	DWPAL_Context *localContext = (DWPAL_Context *)(arg);
 
-	printf("%s Entry\n", __FUNCTION__);
+	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
 
 	if (localContext->interface.driver.nlEventCallback != NULL)
 	{
 		struct nlattr *attr;
 		struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+		struct nlattr *tb[NL80211_ATTR_MAX + 1];
 		unsigned char *data;
+		int vendor_subcmd = -1;
+		char ifname[100] = "\0";
 		int len;
+
+		nla_parse(tb,
+		          NL80211_ATTR_MAX,
+				  genlmsg_attrdata(gnlh, 0),
+				  genlmsg_attrlen(gnlh, 0),
+				  NULL);
 
 		attr = nla_find(genlmsg_attrdata(gnlh, 0),
 		                genlmsg_attrlen(gnlh, 0),
@@ -80,21 +112,32 @@ static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 
 		if (!attr)
 		{
-			printf("%s; vendor data attribute missing ==> Abort!\n", __FUNCTION__);
+			PRINT_ERROR("%s; vendor data attribute missing ==> Abort!\n", __FUNCTION__);
 			return (int)DWPAL_FAILURE;
 		}
 
 		data = (unsigned char *) nla_data(attr);
 		len = nla_len(attr);
 
+		if ( (gnlh->cmd == NL80211_CMD_VENDOR) && (tb[NL80211_ATTR_VENDOR_SUBCMD] != NULL) )
+		{
+			vendor_subcmd = nla_get_u32(tb[NL80211_ATTR_VENDOR_SUBCMD]);
+		}
+
+		if (tb[NL80211_ATTR_IFINDEX] != NULL)
+		{
+			if_indextoname(nla_get_u32(tb[NL80211_ATTR_IFINDEX]), ifname);
+		}
+
 		/* Call the NL callback function */
-		localContext->interface.driver.nlEventCallback((size_t)len, data);
+		localContext->interface.driver.nlEventCallback(ifname, gnlh->cmd, vendor_subcmd, (size_t)len, data);
 	}
 
 	return (int)DWPAL_SUCCESS;
 }
 
-static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int numOfArrayArgs, char fieldValue[] /*OUT*/)
+
+static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int totalSizeOfArg, char fieldValue[] /*OUT*/)
 {
 	char *param;
 	char *localBuf = NULL;
@@ -104,15 +147,15 @@ static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int 
 		localBuf = strdup(buf);
 		if (localBuf == NULL)
 		{
-			printf("%s; localBuf is NULL ==> Abort!\n", __FUNCTION__);
+			PRINT_ERROR("%s; localBuf is NULL ==> Abort!\n", __FUNCTION__);
 			return false;
 		}
 	}
 
-	param = strtok_s(localBuf, bufLen, " ", p2str);
+	param = STRTOK_S(localBuf, bufLen, " ", p2str);
 	if (param == NULL)
 	{
-		printf("%s; param is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; param is NULL ==> Abort!\n", __FUNCTION__);
 		if (localBuf != NULL)
 			free((void *)localBuf);
 		return false;
@@ -120,18 +163,18 @@ static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int 
 
 	if (fieldValue != NULL)
 	{
-		if (strnlen_s(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) > (size_t)(numOfArrayArgs - 1))
+		if (STRNLEN_S(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) > (size_t)(totalSizeOfArg - 1))
 		{
 			if (localBuf != NULL)
 			{
 				free((void *)localBuf);
 			}
 
-			printf("%s; param ('%s') length (%d) is higher than allocated size (%d) ==> Abort!\n", __FUNCTION__, param, strnlen_s(param, numOfArrayArgs), numOfArrayArgs-1);
+			PRINT_ERROR("%s; param ('%s') length (%d) is higher than allocated size (%d) ==> Abort!\n", __FUNCTION__, param, STRNLEN_S(param, totalSizeOfArg), totalSizeOfArg-1);
 			return false;
 		}
 
-		strcpy_s(fieldValue, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH, param);
+		STRCPY_S(fieldValue, STRNLEN_S(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, param);
 	}
 
 	if (localBuf != NULL)
@@ -143,7 +186,7 @@ static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int 
 }
 
 
-static bool arrayValuesGet(char *stringOfValues, size_t numOfArrayArgs, ParamParsingType paramParsingType, size_t *numOfValidArgs /*OUT*/, void *array /*OUT*/)
+static bool arrayValuesGet(char *stringOfValues, size_t totalSizeOfArg, ParamParsingType paramParsingType, size_t *numOfValidArgs /*OUT*/, void *array /*OUT*/)
 {
 	/* fill in the output array with list of integer elements (from decimal/hex base), for example:
 	   "SupportedRates=2 4 11 22 12 18 24 36 48 72 96 108" or "HT_MCS=FF FF FF 00 00 00 00 00 00 00 C2 01 01 00 00 00"
@@ -153,20 +196,20 @@ static bool arrayValuesGet(char *stringOfValues, size_t numOfArrayArgs, ParamPar
 
 	int     idx = 0;
 	char    *p2str, *param, *tokenString;
-	rsize_t dmaxLen = strnlen_s(stringOfValues, DWPAL_TO_HOSTAPD_MSG_LENGTH);
+	rsize_t dmaxLen = STRNLEN_S(stringOfValues, DWPAL_TO_HOSTAPD_MSG_LENGTH);
 
 	tokenString = stringOfValues;
 
 	do
 	{
-		param = strtok_s(tokenString, &dmaxLen, " ", &p2str);
+		param = STRTOK_S(tokenString, &dmaxLen, " ", &p2str);
 		if (param == NULL)
 		{
 			((int *)array)[idx] = 0;
 			break;
 		}
 
-		if (idx < (int)numOfArrayArgs)
+		if (idx < (int)totalSizeOfArg)
 		{
 			if (numOfValidArgs != NULL)
 			{
@@ -183,7 +226,7 @@ static bool arrayValuesGet(char *stringOfValues, size_t numOfArrayArgs, ParamPar
 			}
 			else if (paramParsingType == DWPAL_STR_ARRAY_PARAM)
 			{
-				strcpy_s(&(((char *)array)[idx * HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH]), strnlen_s(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, param);
+				STRCPY_S(&(((char *)array)[idx * HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH]), STRNLEN_S(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, param);
 			}
 		}
 
@@ -192,9 +235,9 @@ static bool arrayValuesGet(char *stringOfValues, size_t numOfArrayArgs, ParamPar
 		idx++;
 	} while (idx < DWPAL_MAX_NUM_OF_ELEMENTS);  /* allow up to 512 elements per field (array) */
 
-	if (idx >= (int)numOfArrayArgs)
+	if (idx >= (int)totalSizeOfArg)
 	{
-		printf("%s; actual number of arguments (%d) is bigger/equal then numOfArrayArgs (%d) ==> Abort!\n", __FUNCTION__, idx, numOfArrayArgs);
+		PRINT_ERROR("%s; actual number of arguments (%d) is bigger/equal then totalSizeOfArg (%d) ==> Abort!\n", __FUNCTION__, idx, totalSizeOfArg);
 		return false;
 	}
 
@@ -217,7 +260,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 	localBuf = (char *)malloc(bufLen + 2 /* '\0' & 'blank' */);
 	if (localBuf == NULL)
 	{
-		printf("%s; malloc failed ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; malloc failed ==> Abort!\n", __FUNCTION__);
 		return false;
 	}
 
@@ -227,10 +270,10 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 
 	/* localStringToSearch set to stringToSearch with addition of " " at the beginning -
 	   it is a MUST in order to differentiate between "ssid" and "bssid" */
-	localStringToSearch = (char *)malloc(strnlen_s(stringToSearch, DWPAL_FIELD_NAME_LENGTH) + 2 /*'\0' & 'blank' */);
+	localStringToSearch = (char *)malloc(STRNLEN_S(stringToSearch, DWPAL_FIELD_NAME_LENGTH) + 2 /*'\0' & 'blank' */);
 	if (localStringToSearch == NULL)
 	{
-		printf("%s; localStringToSearch is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; localStringToSearch is NULL ==> Abort!\n", __FUNCTION__);
 		free((void *)localBuf);
 		return false;
 	}
@@ -244,9 +287,9 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 		ret = true;  /* mark that at least one fiels was found */
 
 		/* move the string pointer to the beginning of the field's value */
-		restOfStringStart = stringStart + strnlen_s(localStringToSearch, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH);
-		//printf("%s; stringStart= 0x%x, strlen of ('%s')= %d ==> restOfStringStart= 0x%x\n",
-			   //__FUNCTION__, (unsigned int)stringStart, localStringToSearch, strnlen_s(localStringToSearch, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH), (unsigned int)restOfStringStart);
+		restOfStringStart = stringStart + STRNLEN_S(localStringToSearch, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH);
+		//PRINT_DEBUG("%s; stringStart= 0x%x, strlen of ('%s')= %d ==> restOfStringStart= 0x%x\n",
+			   //__FUNCTION__, (unsigned int)stringStart, localStringToSearch, STRNLEN_S(localStringToSearch, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH), (unsigned int)restOfStringStart);
 
 		/* find all beginning of all other fields (and get the closest to the current field) in order to know where the field's value ends */
 		i = 0;
@@ -257,7 +300,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 			if (stringEnd != NULL)
 			{
 				stringEnd++;  /* move one character ahead due to the ' ' at the beginning of localEndFieldName */
-				//printf("%s; localEndFieldName= '%s' FOUND! (i= %d)\n", __FUNCTION__, localEndFieldName, i);
+				//PRINT_DEBUG("%s; localEndFieldName= '%s' FOUND! (i= %d)\n", __FUNCTION__, localEndFieldName, i);
 				if (isFirstEndOfString)
 				{
 					isFirstEndOfString = false;
@@ -268,40 +311,40 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 					closerStringEnd = (stringEnd < closerStringEnd)? stringEnd : closerStringEnd;
 				}
 
-				//printf("%s; [0] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
+				//PRINT_DEBUG("%s; [0] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
 			}
 
 			i++;
 		}
 
-		//printf("%s; [1] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
+		//PRINT_DEBUG("%s; [1] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
 
 		if (closerStringEnd == NULL)
 		{  /* Meaning, this is the last parameter in the string */
-			//printf("%s; closerStringEnd is NULL; restOfStringStart= '%s'\n", __FUNCTION__, restOfStringStart);
-			closerStringEnd = restOfStringStart + strnlen_s(restOfStringStart, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1 /* for '\0' */;
-			//printf("%s; [2] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
+			//PRINT_DEBUG("%s; closerStringEnd is NULL; restOfStringStart= '%s'\n", __FUNCTION__, restOfStringStart);
+			closerStringEnd = restOfStringStart + STRNLEN_S(restOfStringStart, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1 /* for '\0' */;
+			//PRINT_DEBUG("%s; [2] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
 
-			//printf("%s; String end did NOT found ==> set closerStringEnd to the end of buf; closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
+			//PRINT_DEBUG("%s; String end did NOT found ==> set closerStringEnd to the end of buf; closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
 		}
 
-		//printf("%s; stringToSearch= '%s'; restOfStringStart= '%s'; buf= '%s'\n", __FUNCTION__, stringToSearch, restOfStringStart, buf);
-		//printf("%s; restOfStringStart= 0x%x, closerStringEnd= 0x%x ==> characters to copy = %d\n", __FUNCTION__, (unsigned int)restOfStringStart, (unsigned int)closerStringEnd, closerStringEnd - restOfStringStart);
+		//PRINT_DEBUG("%s; stringToSearch= '%s'; restOfStringStart= '%s'; buf= '%s'\n", __FUNCTION__, stringToSearch, restOfStringStart, buf);
+		//PRINT_DEBUG("%s; restOfStringStart= 0x%x, closerStringEnd= 0x%x ==> characters to copy = %d\n", __FUNCTION__, (unsigned int)restOfStringStart, (unsigned int)closerStringEnd, closerStringEnd - restOfStringStart);
 
 		/* set 'numOfCharacters' with the number of characters to copy (including the blank or end-of-string at the end) */
 		numOfCharacters = closerStringEnd - restOfStringStart;
 		if (numOfCharacters <= 0)
 		{
-			printf("%s; numOfCharacters= %d ==> Abort!\n", __FUNCTION__, numOfCharacters);
+			PRINT_ERROR("%s; numOfCharacters= %d ==> Abort!\n", __FUNCTION__, numOfCharacters);
 			free((void *)localBuf);
 			free((void *)localStringToSearch);
 			return false;
 		}
 
 		/* Copy the characters of the value, and set the last one to '\0' */
-		strncpy_s(tempStringOfValues, sizeof(tempStringOfValues), restOfStringStart, numOfCharacters);
+		STRNCPY_S(tempStringOfValues, sizeof(tempStringOfValues), restOfStringStart, numOfCharacters);
 		tempStringOfValues[numOfCharacters - 1] = '\0';
-		//printf("%s; stringToSearch= '%s'; tempStringOfValues= '%s'\n", __FUNCTION__, stringToSearch, tempStringOfValues);
+		//PRINT_DEBUG("%s; stringToSearch= '%s'; tempStringOfValues= '%s'\n", __FUNCTION__, stringToSearch, tempStringOfValues);
 
 		/* Check if all elements are valid; if an element contains "=", it is NOT valid ==> do NOT copy it! */
 		for (i=0; i < numOfCharacters; i++)
@@ -320,7 +363,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 		idx += numOfCharactersToCopy;
 		stringOfValues[idx] = '\0';
 
-		//printf("%s; stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, stringToSearch, stringOfValues);
+		//PRINT_DEBUG("%s; stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, stringToSearch, stringOfValues);
 
 		closerStringEnd = NULL;
 	}
@@ -338,12 +381,12 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 		}
 	}
 
-	//printf("%s; stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, stringToSearch, stringOfValues);
+	//PRINT_DEBUG("%s; stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, stringToSearch, stringOfValues);
 
 	free((void *)localBuf);
 	free((void *)localStringToSearch);
 
-	//printf("%s; ret= %d, stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, ret, stringToSearch, stringOfValues);
+	//PRINT_DEBUG("%s; ret= %d, stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, ret, stringToSearch, stringOfValues);
 
 	return ret;
 }
@@ -353,11 +396,11 @@ static bool isColumnOfFields(char *msg, char *endFieldName[])
 {
 	int i = 0, numOfFieldsInLine = 0;
 
-	//printf("%s; line= '%s'\n", __FUNCTION__, msg);
+	//PRINT_DEBUG("%s; line= '%s'\n", __FUNCTION__, msg);
 
 	if (endFieldName == NULL)
 	{
-		printf("%s; endFieldName= 'NULL' ==> not a column!\n", __FUNCTION__);
+		PRINT_DEBUG("%s; endFieldName= 'NULL' ==> not a column!\n", __FUNCTION__);
 		return false;
 	}
 
@@ -369,24 +412,24 @@ static bool isColumnOfFields(char *msg, char *endFieldName[])
 
 			if (numOfFieldsInLine > 1)
 			{
-				//printf("%s; Not a column (numOfFieldsInLine= %d) ==> return!\n", __FUNCTION__, numOfFieldsInLine);
+				//PRINT_DEBUG("%s; Not a column (numOfFieldsInLine= %d) ==> return!\n", __FUNCTION__, numOfFieldsInLine);
 				return false;
 			}
 
 			/* Move ahead inside the line, to avoid double recognition (like "PacketsSent" and "DiscardPacketsSent") */
-			msg += strnlen_s(endFieldName[i], HOSTAPD_TO_DWPAL_MSG_LENGTH);
+			msg += STRNLEN_S(endFieldName[i], HOSTAPD_TO_DWPAL_MSG_LENGTH);
 		}
 
 		i++;
 	}
 
-	//printf("%s; It is a column (numOfFieldsInLine= %d)\n", __FUNCTION__, numOfFieldsInLine);
+	//PRINT_DEBUG("%s; It is a column (numOfFieldsInLine= %d)\n", __FUNCTION__, numOfFieldsInLine);
 
 	return true;
 }
 
 
-static bool columnOfParamsToRawConvert(char *msg, size_t msgLen, char *endFieldName[])
+static bool columnOfParamsToRowConvert(char *msg, size_t msgLen, char *endFieldName[])
 {
 	char    *localMsg = strdup(msg), *lineMsg, *p2str;
 	rsize_t dmaxLen = (rsize_t)msgLen;
@@ -395,11 +438,11 @@ static bool columnOfParamsToRawConvert(char *msg, size_t msgLen, char *endFieldN
 
 	if (localMsg == NULL)
 	{
-		printf("%s; strdup error ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; strdup error ==> Abort!\n", __FUNCTION__);
 		return false;
 	}
 
-	lineMsg = strtok_s(localMsg, (rsize_t *)&dmaxLen, "\n", &p2str);
+	lineMsg = STRTOK_S(localMsg, (rsize_t *)&dmaxLen, "\n", &p2str);
 
 	while (lineMsg != NULL)
 	{
@@ -407,11 +450,11 @@ static bool columnOfParamsToRawConvert(char *msg, size_t msgLen, char *endFieldN
 
 		if (isColumn == false)
 		{
-			//printf("%s; Not a column ==> break!\n", __FUNCTION__);
+			//PRINT_DEBUG("%s; Not a column ==> break!\n", __FUNCTION__);
 			break;
 		}
 
-		lineMsg = strtok_s(NULL, (rsize_t *)&dmaxLen, "\n", &p2str);
+		lineMsg = STRTOK_S(NULL, (rsize_t *)&dmaxLen, "\n", &p2str);
 	}
 
 	free ((void *)localMsg);
@@ -434,8 +477,6 @@ static bool columnOfParamsToRawConvert(char *msg, size_t msgLen, char *endFieldN
 }
 
 
-/* Command APIs */
-
 
 /* Low Level APIs */
 
@@ -446,39 +487,39 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 	DWPAL_Context *localContext = (DWPAL_Context *)(context);
 	signed long long devidx = 0;
 
-	printf("%s Entry!\n", __FUNCTION__);
+	PRINT_DEBUG("%s Entry!\n", __FUNCTION__);
 
-	if (nl80211Command != 0x67 /*NL80211_CMD_VENDOR*/)
+	if (nl80211Command != NL80211_CMD_VENDOR /*0x67*/)
 	{
-		printf("%s; non supported command (0x%x); currently we support ONLY NL80211_CMD_VENDOR (0x67) ==> Abort!\n", __FUNCTION__, (unsigned int)nl80211Command);
+		PRINT_ERROR("%s; non supported command (0x%x); currently we support ONLY NL80211_CMD_VENDOR (0x67) ==> Abort!\n", __FUNCTION__, (unsigned int)nl80211Command);
 		return DWPAL_FAILURE;
 	}
 
 	for (i=0; i < (int)vendorDataSize; i++)
 	{
-		printf("%s; vendorData[%d]= 0x%x\n", __FUNCTION__, i, vendorData[i]);
+		PRINT_DEBUG("%s; vendorData[%d]= 0x%x\n", __FUNCTION__, i, vendorData[i]);
 	}
 
 	if (localContext == NULL)
 	{
-		printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (localContext->interface.driver.nlSocket == NULL)
 	{
-		printf("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	msg = nlmsg_alloc();
 	if (msg == NULL)
 	{
-		printf("%s; nlmsg_alloc returned NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; nlmsg_alloc returned NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	printf("%s; nl80211_id= %d\n", __FUNCTION__, localContext->interface.driver.nl80211_id);
+	PRINT_DEBUG("%s; nl80211_id= %d\n", __FUNCTION__, localContext->interface.driver.nl80211_id);
 
 	/* calling genlmsg_put() is a must! without it, the callback won't be called! */
 	genlmsg_put(msg, 0, 0, localContext->interface.driver.nl80211_id, 0,0, nl80211Command /* NL80211_CMD_VENDOR=0x67*/, 0);
@@ -487,7 +528,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 	devidx = if_nametoindex(ifname);
 	if (devidx < 0)
 	{
-		printf("%s; devidx ERROR (devidx= %lld) ==> Abort!\n", __FUNCTION__, devidx);
+		PRINT_ERROR("%s; devidx ERROR (devidx= %lld) ==> Abort!\n", __FUNCTION__, devidx);
 		nlmsg_free(msg);
 		return DWPAL_FAILURE;
 	}
@@ -510,14 +551,14 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 			break;
 
 		default:
-			printf("%s; cmdIdType ERROR (cmdIdType= %d) ==> Abort!\n", __FUNCTION__, cmdIdType);
+			PRINT_ERROR("%s; cmdIdType ERROR (cmdIdType= %d) ==> Abort!\n", __FUNCTION__, cmdIdType);
 			nlmsg_free(msg);
 			return DWPAL_FAILURE;
 	}
 
 	if (res < 0)
 	{
-		printf("%s; building message failed ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; building message failed ==> Abort!\n", __FUNCTION__);
 		nlmsg_free(msg);
 		return DWPAL_FAILURE;
 	}
@@ -526,7 +567,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 	//NLA_PUT_U32(msg, NL80211_ATTR_VENDOR_ID, OUI_LTQ /*0xAC9A96*/);
 	if (res < 0)
 	{
-		printf("%s; building message failed ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; building message failed ==> Abort!\n", __FUNCTION__);
 		nlmsg_free(msg);
 		return DWPAL_FAILURE;
 	}
@@ -535,7 +576,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 	//NLA_PUT_U32(msg, NL80211_ATTR_VENDOR_SUBCMD, subCommand);
 	if (res < 0)
 	{
-		printf("%s; building message failed ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; building message failed ==> Abort!\n", __FUNCTION__);
 		nlmsg_free(msg);
 		return DWPAL_FAILURE;
 	}
@@ -546,7 +587,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 		res = nla_put(msg, NL80211_ATTR_VENDOR_DATA, (int)vendorDataSize, (void *)vendorData);
 		if (res < 0)
 		{
-			printf("%s; building message failed ==> Abort!\n", __FUNCTION__);
+			PRINT_ERROR("%s; building message failed ==> Abort!\n", __FUNCTION__);
 			nlmsg_free(msg);
 			return DWPAL_FAILURE;
 		}
@@ -556,7 +597,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 	res = nl_send_auto(localContext->interface.driver.nlSocket, msg);  // can use nl_send_auto_complete(localContext->interface.driver.nlSocket, msg) instead
 	if (res < 0)
 	{
-		printf("%s; nl_send_auto returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
+		PRINT_ERROR("%s; nl_send_auto returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
 		nlmsg_free(msg);
 		return DWPAL_FAILURE;
 	}
@@ -570,19 +611,20 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_nlEventCallback nlEventCallback)
 {
 	int res;
+	struct nl_cb *cb;
 	DWPAL_Context *localContext = (DWPAL_Context *)(context);
 
-	printf("%s Entry\n", __FUNCTION__);
+	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
 
 	if (localContext == NULL)
 	{
-		printf("%s; localContext is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; localContext is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (localContext->interface.driver.nlSocket == NULL)
 	{
-		printf("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -590,20 +632,23 @@ DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_nlEventCallback nlEventCa
 	localContext->interface.driver.nlEventCallback = nlEventCallback;
 
 	/* Connect the nl socket to its message callback function */
-	if (nl_socket_modify_cb(localContext->interface.driver.nlSocket,
-	                        NL_CB_VALID, NL_CB_CUSTOM,
-	                        nlInternalEventCallback,
-	                        context /* will be used in "arg" param of nlInternalEventCallback */) < 0)
+	cb = nl_cb_alloc(NL_CB_DEFAULT);
+
+	if (cb == NULL)
 	{
-		printf("%s; nl_socket_modify_cb ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; failed to allocate netlink callbacks ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
+	nl_cb_set(cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM, no_seq_check, NULL);
+	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, nlInternalEventCallback, context);
+
+
 	/* will trigger nlEventCallback() function call */
-	res = nl_recvmsgs_default(localContext->interface.driver.nlSocket);
+	res = nl_recvmsgs(localContext->interface.driver.nlSocket, cb);
 	if (res < 0)
 	{
-		printf("%s; nl_recvmsgs_default returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
+		PRINT_ERROR("%s; nl_recvmsgs_default returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
 		return DWPAL_FAILURE;
 	}
 
@@ -615,7 +660,7 @@ DWPAL_Ret dwpal_driver_nl_fd_get(void *context, int *fd /*OUT*/)
 {
 	if ( (context == NULL) || (fd == NULL) )
 	{
-		//printf("%s; context and/or fd is NULL ==> Abort!\n", __FUNCTION__);
+		//PRINT_ERROR("%s; context and/or fd is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -623,7 +668,7 @@ DWPAL_Ret dwpal_driver_nl_fd_get(void *context, int *fd /*OUT*/)
 
 	if (*fd == (-1))
 	{
-		printf("%s; fd value is (-1) ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; fd value is (-1) ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -631,19 +676,26 @@ DWPAL_Ret dwpal_driver_nl_fd_get(void *context, int *fd /*OUT*/)
 }
 
 
-DWPAL_Ret dwpal_driver_nl_detach(void *context)
+DWPAL_Ret dwpal_driver_nl_detach(void **context /*IN/OUT*/)
 {
-	DWPAL_Context *localContext = (DWPAL_Context *)(context);
+	DWPAL_Context *localContext;
 
+	if (context == NULL)
+	{
+		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
+	localContext = (DWPAL_Context *)(*context);
 	if (localContext == NULL)
 	{
-		printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (localContext->interface.driver.nlSocket == NULL)
 	{
-		printf("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -654,30 +706,29 @@ DWPAL_Ret dwpal_driver_nl_detach(void *context)
 	localContext->interface.driver.fd = -1;
 	localContext->interface.driver.nlEventCallback = NULL;
 
+	*context = NULL;
+
 	return DWPAL_SUCCESS;
 }
 
 
 DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 {
-	int res = 1;
+	int res = 1, mcid;
 	DWPAL_Context *localContext;
-#if 0
-	int family, bcast_group;
-#endif
 
-	printf("%s Entry\n", __FUNCTION__);
+	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
 
 	if (context == NULL)
 	{
-		printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	*context = malloc(sizeof(DWPAL_Context));
 	if (*context == NULL)
 	{
-		printf("%s; malloc for context failed ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; malloc for context failed ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -686,7 +737,7 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 	localContext->interface.driver.nlSocket = nl_socket_alloc();
 	if (localContext->interface.driver.nlSocket == NULL)
 	{
-		printf("%s; nl_socket_alloc ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; nl_socket_alloc ERROR ==> Abort!\n", __FUNCTION__);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
@@ -695,7 +746,7 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 	/* Connect to generic netlink socket on kernel side */
 	if (genl_connect(localContext->interface.driver.nlSocket) < 0)
 	{
-		printf("%s; genl_connect ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; genl_connect ERROR ==> Abort!\n", __FUNCTION__);
 		nl_socket_free(localContext->interface.driver.nlSocket);
 		free(*context);
 		*context = NULL;
@@ -704,7 +755,7 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 
 	if (nl_socket_set_buffer_size(localContext->interface.driver.nlSocket, 8192, 8192) != 0)
 	{
-		printf("%s; nl_socket_set_buffer_size ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; nl_socket_set_buffer_size ERROR ==> Abort!\n", __FUNCTION__);
 		nl_socket_free(localContext->interface.driver.nlSocket);
 		free(*context);
 		*context = NULL;
@@ -718,13 +769,13 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 	localContext->interface.driver.fd = nl_socket_get_fd(localContext->interface.driver.nlSocket);
 	if (localContext->interface.driver.fd == -1)
 	{
-		printf("%s; nl_socket_get_fd ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; nl_socket_get_fd ERROR ==> Abort!\n", __FUNCTION__);
 		nl_socket_free(localContext->interface.driver.nlSocket);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
 	}
-	printf("%s; driver.fd= %d\n", __FUNCTION__, localContext->interface.driver.fd);
+	PRINT_DEBUG("%s; driver.fd= %d\n", __FUNCTION__, localContext->interface.driver.fd);
 
 	/* manipulate options for the socket referred to by the file descriptor - driver.fd */
 	setsockopt(localContext->interface.driver.fd, SOL_NETLINK /*option level argument*/,
@@ -734,26 +785,24 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 	localContext->interface.driver.nl80211_id = genl_ctrl_resolve(localContext->interface.driver.nlSocket, "nl80211");
 	if (localContext->interface.driver.nl80211_id < 0)
 	{
-		printf("%s; genl_ctrl_resolve ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; genl_ctrl_resolve ERROR ==> Abort!\n", __FUNCTION__);
 		nl_socket_free(localContext->interface.driver.nlSocket);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
 	}
-	printf("%s; driver.nl80211_id= %d\n", __FUNCTION__, localContext->interface.driver.nl80211_id);
+	PRINT_DEBUG("%s; driver.nl80211_id= %d\n", __FUNCTION__, localContext->interface.driver.nl80211_id);
 
-#if 0
-	/* Ask kernel to resolve family name to family id */
-	family = genl_ctrl_resolve(localContext->interface.driver.nlSocket, MTLK_GENL_FAMILY_NAME);
+	mcid = genl_ctrl_resolve_grp(localContext->interface.driver.nlSocket, "nl80211", "vendor");
 
-	bcast_group = family + (NETLINK_FAPI_GROUP - 1);
-	if (nl_socket_add_membership(localContext->interface.driver.nlSocket, bcast_group) < 0)
+	PRINT_DEBUG("%s; mcid= %d\n", __FUNCTION__, mcid);
+
+	if (nl_socket_add_membership(localContext->interface.driver.nlSocket, mcid) < 0)
 	{
-		printf("%s; nl_socket_add_membership ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_DEBUG("%s; nl_socket_add_membership ERROR ==> Abort!\n", __FUNCTION__);
 	}
-#endif
 
-	printf("%s; driver.nlSocket= 0x%x, driver.nlEventCallback= 0x%x, driver.nl80211_id= %d\n",
+	PRINT_DEBUG("%s; driver.nlSocket= 0x%x, driver.nlEventCallback= 0x%x, driver.nl80211_id= %d\n",
 	       __FUNCTION__, (unsigned int)localContext->interface.driver.nlSocket, (unsigned int)localContext->interface.driver.nlEventCallback, localContext->interface.driver.nl80211_id);
 
 	return DWPAL_SUCCESS;
@@ -773,23 +822,23 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 
 	if ( (msg == NULL) || (msgLen == 0) || (fieldsToParse == NULL) )
 	{
-		printf("%s; input params error ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; input params error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	if ( (msgStringLen = strnlen_s(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH)) > msgLen )
+	if ( (msgStringLen = STRNLEN_S(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH)) > msgLen )
 	{
-		printf("%s; msgStringLen (%d) is bigger than msgLen (%d) ==> Abort!\n", __FUNCTION__, msgStringLen, msgLen);
+		PRINT_ERROR("%s; msgStringLen (%d) is bigger than msgLen (%d) ==> Abort!\n", __FUNCTION__, msgStringLen, msgLen);
 		return DWPAL_FAILURE;
 	}
 
-	//printf("%s; [0] msgLen= %d\n", __FUNCTION__, msgLen);
+	//PRINT_DEBUG("%s; [0] msgLen= %d\n", __FUNCTION__, msgLen);
 
 	/* Convert msgLen to string length format (without the '\0' character) */
 	msgLen = dmaxLen = msgStringLen;
-	//printf("%s; [1] msgLen= %d\n", __FUNCTION__, msgLen);
+	//PRINT_DEBUG("%s; [1] msgLen= %d\n", __FUNCTION__, msgLen);
 
-	//printf("%s; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+	//PRINT_DEBUG("%s; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 
 	/* Set values for 'numOfNameArrayArgs' and 'sizeOfStruct' */
 	while (fieldsToParse[i].parsingType != DWPAL_NUM_OF_PARSING_TYPES)
@@ -806,72 +855,72 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			switch (fieldsToParse[i].parsingType)
 			{
 				case DWPAL_STR_PARAM:
-					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].numOfArrayArgs == 0) )
+					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].totalSizeOfArg == 0) )
 					{
-						printf("%s; Error; DWPAL_STR_PARAM must have positive value for numOfArrayArgs ==> Abort!\n", __FUNCTION__);
+						PRINT_ERROR("%s; Error; DWPAL_STR_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
 						return DWPAL_FAILURE;
 					}
 
-					sizeOfStruct += sizeof(char) * fieldsToParse[i].numOfArrayArgs;  /* array of characters (string) */
-					//printf("%s; DWPAL_STR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					sizeOfStruct += sizeof(char) * fieldsToParse[i].totalSizeOfArg;  /* array of characters (string) */
+					//PRINT_DEBUG("%s; DWPAL_STR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_STR_ARRAY_PARAM:
-					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].numOfArrayArgs == 0) )
+					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].totalSizeOfArg == 0) )
 					{
-						printf("%s; Error; DWPAL_STR_ARRAY_PARAM must have positive value for numOfArrayArgs ==> Abort!\n", __FUNCTION__);
+						PRINT_ERROR("%s; Error; DWPAL_STR_ARRAY_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
 						return DWPAL_FAILURE;
 					}
 
-					sizeOfStruct += fieldsToParse[i].numOfArrayArgs;
-					//printf("%s; DWPAL_STR_ARRAY_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					sizeOfStruct += fieldsToParse[i].totalSizeOfArg;
+					//PRINT_DEBUG("%s; DWPAL_STR_ARRAY_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_CHAR_PARAM:
 					sizeOfStruct += sizeof(char);
-					//printf("%s; DWPAL_CHAR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//PRINT_DEBUG("%s; DWPAL_CHAR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_UNSIGNED_CHAR_PARAM:
 					sizeOfStruct += sizeof(unsigned char);
-					//printf("%s; DWPAL_UNSIGNED_CHAR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//PRINT_DEBUG("%s; DWPAL_UNSIGNED_CHAR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_SHORT_INT_PARAM:
 					sizeOfStruct += sizeof(short int);
-					//printf("%s; DWPAL_SHORT_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//PRINT_DEBUG("%s; DWPAL_SHORT_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_INT_PARAM:
 				case DWPAL_INT_HEX_PARAM:
 					sizeOfStruct += sizeof(int);
-					//printf("%s; DWPAL_INT_PARAM/DWPAL_INT_HEX_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//PRINT_DEBUG("%s; DWPAL_INT_PARAM/DWPAL_INT_HEX_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_LONG_LONG_INT_PARAM:
 					sizeOfStruct += sizeof(long long int);
-					//printf("%s; DWPAL_LONG_LONG_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//PRINT_DEBUG("%s; DWPAL_LONG_LONG_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_INT_ARRAY_PARAM:
 				case DWPAL_INT_HEX_ARRAY_PARAM:
-					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].numOfArrayArgs == 0) )
+					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].totalSizeOfArg == 0) )
 					{
-						printf("%s; Error; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM must have positive value for numOfArrayArgs ==> Abort!\n", __FUNCTION__);
+						PRINT_ERROR("%s; Error; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
 						return DWPAL_FAILURE;
 					}
 
-					sizeOfStruct += sizeof(int) * fieldsToParse[i].numOfArrayArgs;
-					//printf("%s; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					sizeOfStruct += sizeof(int) * fieldsToParse[i].totalSizeOfArg;
+					//PRINT_DEBUG("%s; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_BOOL_PARAM:
 					sizeOfStruct += sizeof(bool);
-					//printf("%s; DWPAL_BOOL_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//PRINT_DEBUG("%s; DWPAL_BOOL_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				default:
-					printf("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].parsingType);
+					PRINT_ERROR("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].parsingType);
 					ret = DWPAL_FAILURE;
 					break;
 			}
@@ -888,7 +937,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 		endFieldName = (char **)malloc(sizeof(*endFieldName) * numOfNameArrayArgs);
 		if (endFieldName == NULL)
 		{
-			printf("%s; malloc endFieldName failed ==> Abort!\n", __FUNCTION__);
+			PRINT_ERROR("%s; malloc endFieldName failed ==> Abort!\n", __FUNCTION__);
 			ret = DWPAL_FAILURE;
 		}
 
@@ -905,13 +954,13 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				endFieldName[idx] =  (char *)malloc(DWPAL_FIELD_NAME_LENGTH);
 				if (endFieldName[idx] == NULL)
 				{
-					printf("%s; malloc endFieldName[%d] failed ==> Abort!\n", __FUNCTION__, i);
+					PRINT_ERROR("%s; malloc endFieldName[%d] failed ==> Abort!\n", __FUNCTION__, i);
 					ret = DWPAL_FAILURE;
 					break;
 				}
 
 				memset((void *)endFieldName[idx], '\0', DWPAL_FIELD_NAME_LENGTH);  /* Clear the field name */
-				strcpy_s(endFieldName[idx], DWPAL_FIELD_NAME_LENGTH, fieldsToParse[i].stringToSearch);
+				STRCPY_S(endFieldName[idx], STRNLEN_S(fieldsToParse[i].stringToSearch, DWPAL_FIELD_NAME_LENGTH) + 1, fieldsToParse[i].stringToSearch);
 
 				idx++;
 			}
@@ -924,35 +973,35 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			endFieldName[idx] =  (char *)malloc(DWPAL_FIELD_NAME_LENGTH);
 			if (endFieldName[idx] == NULL)
 			{
-				printf("%s; malloc endFieldName[%d] failed ==> Abort!\n", __FUNCTION__, idx);
+				PRINT_ERROR("%s; malloc endFieldName[%d] failed ==> Abort!\n", __FUNCTION__, idx);
 				ret = DWPAL_FAILURE;
 			}
 			else
 			{
 				memset((void *)endFieldName[idx], '\0', DWPAL_FIELD_NAME_LENGTH);  /* Clear the field name */
-				strcpy_s(endFieldName[idx], DWPAL_FIELD_NAME_LENGTH, "\n");
+				STRCPY_S(endFieldName[idx], 2, "\n");
 				isEndFieldNameAllocated = true;
 			}
 		}
 	}
 
-	//printf("%s; [0] msg= '%s'\n", __FUNCTION__, msg);
+	//PRINT_DEBUG("%s; [0] msg= '%s'\n", __FUNCTION__, msg);
 
 	/* In case of a column, convert it to one raw */
 	if ( (ret == DWPAL_SUCCESS) && (isEndFieldNameAllocated) )
 	{
-		if (columnOfParamsToRawConvert(msg, msgLen , endFieldName) == false)
+		if (columnOfParamsToRowConvert(msg, msgLen , endFieldName) == false)
 		{
-			printf("%s; columnOfParamsToRawConvert error ==> Abort!\n", __FUNCTION__);
+			PRINT_ERROR("%s; columnOfParamsToRowConvert error ==> Abort!\n", __FUNCTION__);
 			ret = DWPAL_FAILURE;
 		}
 	}
 
-	//printf("%s; [1] msg= '%s'\n", __FUNCTION__, msg);
+	//PRINT_DEBUG("%s; [1] msg= '%s'\n", __FUNCTION__, msg);
 
 	/* Perform the actual parsing */
-	//printf("%s; [1.1] dmaxLen= %d, p2str= '%s'\n", __FUNCTION__, dmaxLen, p2str);
-	lineMsg = strtok_s(msg, &dmaxLen, "\n", &p2str);
+	//PRINT_DEBUG("%s; [1.1] dmaxLen= %d, p2str= '%s'\n", __FUNCTION__, dmaxLen, p2str);
+	lineMsg = STRTOK_S(msg, &dmaxLen, "\n", &p2str);
 	localMsg = lineMsg;
 	lineIdx = 0;
 
@@ -960,28 +1009,28 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 	{
 		void *field;
 
-		//printf("%s; [2] lineMsg= '%s'\n", __FUNCTION__, lineMsg);
+		//PRINT_DEBUG("%s; [2] lineMsg= '%s'\n", __FUNCTION__, lineMsg);
 
 		i = 0;
 		while ( (fieldsToParse[i].parsingType != DWPAL_NUM_OF_PARSING_TYPES) && (ret == DWPAL_SUCCESS) )
 		{
 			/* set the output parameter - move it to the next array index (needed when parsing many lines) */
 			field = (void *)((unsigned int)fieldsToParse[i].field + lineIdx * sizeOfStruct);
-			//printf("%s; lineIdx= %d, sizeOfStruct= %d, field= 0x%x\n", __FUNCTION__, lineIdx, sizeOfStruct, (unsigned int)field);
+			//PRINT_DEBUG("%s; lineIdx= %d, sizeOfStruct= %d, field= 0x%x\n", __FUNCTION__, lineIdx, sizeOfStruct, (unsigned int)field);
 
 			switch (fieldsToParse[i].parsingType)
 			{
 				case DWPAL_STR_PARAM:
 					if (fieldsToParse[i].stringToSearch == NULL)
 					{  /* Handle mandatory parameters WITHOUT any string-prefix */
-						dmaxLenMandatory = (rsize_t)strnlen_s(lineMsg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
+						dmaxLenMandatory = (rsize_t)STRNLEN_S(lineMsg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
 						if (mandatoryFieldValueGet(localMsg /*will be NULL starting from 2nd param*/,
 						                           &dmaxLenMandatory,
 						                           &p2strMandatory,
-						                           (int)fieldsToParse[i].numOfArrayArgs,
+						                           (int)fieldsToParse[i].totalSizeOfArg,
 						                           (char *)field /*OUT*/) == false)
 						{
-							printf("%s; mandatory is NULL ==> Abort!\n", __FUNCTION__);
+							PRINT_ERROR("%s; mandatory is NULL ==> Abort!\n", __FUNCTION__);
 							ret = DWPAL_FAILURE;  /* mandatory parameter is missing ==> Abort! */
 						}
 						else
@@ -1007,14 +1056,15 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 								(*(fieldsToParse[i].numOfValidArgs))++;
 							}
 
-							if ((strnlen_s(stringOfValues, DWPAL_TO_HOSTAPD_MSG_LENGTH) + 1) > fieldsToParse[i].numOfArrayArgs)
+							if ((STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1) > fieldsToParse[i].totalSizeOfArg)
 							{
-								printf("%s; string length (%d) is bigger the allocated string size (%d)\n", __FUNCTION__, strnlen_s(stringOfValues, DWPAL_TO_HOSTAPD_MSG_LENGTH) + 1, fieldsToParse[i].numOfArrayArgs);
+								PRINT_ERROR("%s; string length (%d) is bigger the allocated string size (%d)\n",
+								            __FUNCTION__, STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, fieldsToParse[i].totalSizeOfArg);
 								ret = DWPAL_FAILURE;  /* longer string then allocated ==> Abort! */
 							}
 							else
 							{
-								strcpy_s((char *)field, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH, stringOfValues);
+								STRCPY_S((char *)field, STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, stringOfValues);
 							}
 						}
 						else
@@ -1037,9 +1087,9 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
 					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
 					{
-						if (arrayValuesGet(stringOfValues, fieldsToParse[i].numOfArrayArgs, DWPAL_STR_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, (char *)field) == false)
+						if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_STR_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, (char *)field) == false)
 						{
-							printf("%s; arrayValuesGet ERROR\n", __FUNCTION__);
+							PRINT_ERROR("%s; arrayValuesGet ERROR\n", __FUNCTION__);
 						}
 					}
 					else
@@ -1243,12 +1293,12 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
 					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
 					{
-						//printf("%s; [1] fieldsToParse[%d].numOfValidArgs= %d, stringOfValues= '%s'\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs), stringOfValues);
-						if (arrayValuesGet(stringOfValues, fieldsToParse[i].numOfArrayArgs, DWPAL_INT_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
+						//PRINT_DEBUG("%s; [1] fieldsToParse[%d].numOfValidArgs= %d, stringOfValues= '%s'\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs), stringOfValues);
+						if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_INT_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
 						{
-							printf("%s; arrayValuesGet ERROR\n", __FUNCTION__);
+							PRINT_ERROR("%s; arrayValuesGet ERROR\n", __FUNCTION__);
 						}
-						//printf("%s; [2] fieldsToParse[%d].numOfValidArgs= %d\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs));
+						//PRINT_DEBUG("%s; [2] fieldsToParse[%d].numOfValidArgs= %d\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs));
 					}
 					else
 					{
@@ -1289,9 +1339,9 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
 					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
 					{
-						if (arrayValuesGet(stringOfValues, fieldsToParse[i].numOfArrayArgs, DWPAL_INT_HEX_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
+						if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_INT_HEX_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
 						{
-							printf("%s; arrayValuesGet (stringToSearch= '%s') ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].stringToSearch);
+							PRINT_ERROR("%s; arrayValuesGet (stringToSearch= '%s') ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].stringToSearch);
 							ret = DWPAL_FAILURE; /* array of string detected, but getting its arguments failed ==> Abort! */
 						}
 					}
@@ -1325,7 +1375,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					break;
 
 				default:
-					printf("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].parsingType);
+					PRINT_ERROR("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].parsingType);
 					ret = DWPAL_FAILURE;
 					break;
 			}
@@ -1333,7 +1383,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			i++;
 		}
 
-		lineMsg = strtok_s(NULL, &dmaxLen, "\n", &p2str);
+		lineMsg = STRTOK_S(NULL, &dmaxLen, "\n", &p2str);
 		lineIdx++;
 		localMsg = lineMsg;
 	}
@@ -1362,7 +1412,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 }
 
 
-DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply, size_t *replyLen)
+DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply /*OUT*/, size_t *replyLen /*IN/OUT*/)
 {
 	int       i;
 	DWPAL_Ret ret = DWPAL_SUCCESS;
@@ -1370,11 +1420,17 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 
 	if ( (context == NULL) || (cmdHeader == NULL) || (reply == NULL) || (replyLen == NULL) )
 	{
-		printf("%s; input params error ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; input params error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	//printf("%s Entry; radioName= '%s', cmdHeader= '%s', replyLen= %d\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName, cmdHeader, *replyLen);
+	if ( ((DWPAL_Context *)context)->interface.hostapd.wpaCtrlPtr == NULL )
+	{
+		PRINT_ERROR("%s; input params error (wpaCtrlPtr = NULL) ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
+	//PRINT_DEBUG("%s Entry; VAPName= '%s', cmdHeader= '%s', replyLen= %d\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName, cmdHeader, *replyLen);
 
 	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s", cmdHeader);
 
@@ -1388,7 +1444,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 				switch (fieldsToCmdParse[i].parsingType)
 				{
 					case DWPAL_STR_PARAM:
-						//printf("%s; fieldsToCmdParse[%d].field= '%s'\n", __FUNCTION__, i, (char *)fieldsToCmdParse[i].field);
+						//PRINT_DEBUG("%s; fieldsToCmdParse[%d].field= '%s'\n", __FUNCTION__, i, (char *)fieldsToCmdParse[i].field);
 						if (fieldsToCmdParse[i].preParamString == NULL)
 						{
 							snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s %s", cmd, (char *)fieldsToCmdParse[i].field);
@@ -1403,7 +1459,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 						break;
 
 					case DWPAL_INT_PARAM:
-						//printf("%s; fieldsToCmdParse[%d].field= %d\n", __FUNCTION__, i, *((int *)fieldsToCmdParse[i].field));
+						//PRINT_DEBUG("%s; fieldsToCmdParse[%d].field= %d\n", __FUNCTION__, i, *((int *)fieldsToCmdParse[i].field));
 						if (fieldsToCmdParse[i].preParamString == NULL)
 						{
 							snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s %d", cmd, *((int *)fieldsToCmdParse[i].field));
@@ -1426,7 +1482,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 						break;
 
 					default:
-						printf("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToCmdParse[i].parsingType);
+						PRINT_ERROR("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToCmdParse[i].parsingType);
 						ret = DWPAL_FAILURE;
 						break;
 				}
@@ -1436,22 +1492,24 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 		}
 	}
 
-	//printf("%s; cmd= '%s'\n", __FUNCTION__, cmd);
+	//PRINT_DEBUG("%s; cmd= '%s'\n", __FUNCTION__, cmd);
+
+	memset((void *)reply, '\0', *replyLen);  /* Clear the output buffer */
 
 	ret = wpa_ctrl_request(((DWPAL_Context *)context)->interface.hostapd.wpaCtrlPtr,
 	                       cmd,
-						   strnlen_s(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH),
+						   STRNLEN_S(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH),
 						   reply,
 						   replyLen /* should be msg-len in/out param */,
 						   ((DWPAL_Context *)context)->interface.hostapd.wpaCtrlEventCallback);
 	if (ret < 0)
 	{
-		printf("%s; wpa_ctrl_request() returned error (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+		PRINT_ERROR("%s; wpa_ctrl_request() returned error (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 		return DWPAL_FAILURE;
 	}
-	reply[*replyLen] = '\0';  /* we need it to clear the "junk" at the end of the string */  //reply[*replyLen - 1] = '\0';  /* we need it to clear the "junk" at the end of the string */
+	reply[*replyLen] = '\0';  /* we need it to clear the "junk" at the end of the string */
 
-	//printf("%s; replyLen= %d\nreply=\n%s\n", __FUNCTION__, *replyLen, reply);
+	//PRINT_DEBUG("%s; replyLen= %d\nreply=\n%s\n", __FUNCTION__, *replyLen, reply);
 
 	return ret;
 }
@@ -1467,7 +1525,7 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 
 	if ( (context == NULL) || (msg == NULL) || (msgLen == NULL) || (opCode == NULL) )
 	{
-		printf("%s; context/msg/msgLen/opCode is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; context/msg/msgLen/opCode is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1477,7 +1535,7 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 
 	if (wpaCtrlPtr == NULL)
 	{
-		printf("%s; wpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; wpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1486,7 +1544,7 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 	switch (ret)
 	{
 		case -1:  /* error */
-			printf("%s; wpa_ctrl_pending() returned ERROR ==> Abort!\n", __FUNCTION__);
+			PRINT_ERROR("%s; wpa_ctrl_pending() returned ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 			break;
 
@@ -1498,7 +1556,7 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 			break;
 
 		default:
-			printf("%s; wpa_ctrl_pending() returned unknown (%d) value ==> Abort!\n", __FUNCTION__, ret);
+			PRINT_ERROR("%s; wpa_ctrl_pending() returned unknown (%d) value ==> Abort!\n", __FUNCTION__, ret);
 			return DWPAL_FAILURE;
 			break;
 	}
@@ -1506,26 +1564,26 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 	/* There are pending messages */
 	if (wpa_ctrl_recv(wpaCtrlPtr, msg, msgLen) == 0)
 	{
-		//printf("%s; msgLen= %d\nmsg= '%s'\n", __FUNCTION__, *msgLen, msg);
+		//PRINT_DEBUG("%s; msgLen= %d\nmsg= '%s'\n", __FUNCTION__, *msgLen, msg);
 		msg[*msgLen] = '\0';
 		if (*msgLen <= 5)
 		{
-			printf("%s; '%s' is NOT a report ==> Abort!\n", __FUNCTION__, msg);
+			PRINT_ERROR("%s; '%s' is NOT a report ==> Abort!\n", __FUNCTION__, msg);
 			return DWPAL_FAILURE;
 		}
 		else
 		{
 			dmaxLen = (rsize_t)*msgLen;
 			localMsg = strdup(msg);
-			localOpCode = strtok_s(localMsg, &dmaxLen, ">", &p2str);
-			localOpCode = strtok_s(NULL, &dmaxLen, " ", &p2str);
-			strcpy_s(opCode, DWPAL_OPCODE_STRING_LENGTH, localOpCode);
+			localOpCode = STRTOK_S(localMsg, &dmaxLen, ">", &p2str);
+			localOpCode = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
+			STRCPY_S(opCode, STRNLEN_S(localOpCode, DWPAL_OPCODE_STRING_LENGTH) + 1, localOpCode);
 			free((void *)localMsg);
 		}
 	}
 	else
 	{
-		printf("%s; wpa_ctrl_recv() returned ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; wpa_ctrl_recv() returned ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1537,7 +1595,7 @@ DWPAL_Ret dwpal_hostap_event_fd_get(void *context, int *fd /*OUT*/)
 {
 	if ( (context == NULL) || (fd == NULL) )
 	{
-		//printf("%s; context and/or fd is NULL ==> Abort!\n", __FUNCTION__);
+		//PRINT_ERROR("%s; context and/or fd is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1545,7 +1603,7 @@ DWPAL_Ret dwpal_hostap_event_fd_get(void *context, int *fd /*OUT*/)
 
 	if (*fd == (-1))
 	{
-		//printf("%s; fd value is (-1) ==> Abort!\n", __FUNCTION__);
+		//PRINT_ERROR("%s; fd value is (-1) ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1559,38 +1617,38 @@ DWPAL_Ret dwpal_hostap_is_interface_exist(void *context, bool *isExist /*OUT*/)
 
 	if ( (context == NULL) || (isExist == NULL) )
 	{
-		printf("%s; context and/or isExist is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; context and/or isExist is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	//printf("%s; radioName= '%s'\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName);
+	//PRINT_DEBUG("%s; VAPName= '%s'\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 
 	*isExist = false;
 
-	if (((DWPAL_Context *)context)->interface.hostapd.radioName[0] == '\0')
+	if (((DWPAL_Context *)context)->interface.hostapd.VAPName[0] == '\0')
 	{
-		printf("%s; invalid radio name ('%s') ==> Abort!\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName);
+		PRINT_ERROR("%s; invalid radio name ('%s') ==> Abort!\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		return DWPAL_FAILURE;
 	}
 
 	/* check if '/var/run/hostapd/wlanX' or '/var/run/wpa_supplicant/wlanX' exists */
-	snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", ((DWPAL_Context *)context)->interface.hostapd.radioName);
+	snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 	if (access(wpaCtrlName, F_OK) == 0)
 	{
-		//printf("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName);
+		//PRINT_DEBUG("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		*isExist = true;
 	}
 	else
 	{
-		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", ((DWPAL_Context *)context)->interface.hostapd.radioName);
+		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		if (access(wpaCtrlName, F_OK) == 0)
 		{
-			//printf("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName);
+			//PRINT_DEBUG("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 			*isExist = true;
 		}
 		else
 		{
-			printf("%s; radio interface '%s' not present\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.radioName);
+			PRINT_ERROR("%s; radio interface '%s' not present\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		}
 	}
 
@@ -1605,20 +1663,20 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 
 	if (context == NULL)
 	{
-		printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	localContext = (DWPAL_Context *)(*context);
 	if (localContext == NULL)
 	{
-		printf("%s; localContext is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; localContext is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (localContext->interface.hostapd.wpaCtrlPtr == NULL)
 	{
-		printf("%s; wpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; wpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1626,7 +1684,8 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 	{  /* Valid wpaCtrlEventCallback states that this is a two-way connection (for both command and events) */
 		if ((ret = wpa_ctrl_detach(localContext->interface.hostapd.wpaCtrlPtr)) != 0)
 		{
-			printf("%s; wpa_ctrl_detach (radioName= '%s') returned ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName, ret);
+			PRINT_ERROR("%s; wpa_ctrl_detach (VAPName= '%s') returned ERROR (ret= %d) ==> Abort!\n",
+			            __FUNCTION__, localContext->interface.hostapd.VAPName, ret);
 			return DWPAL_FAILURE;
 		}
 	}
@@ -1635,13 +1694,14 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 		/* Close & reset 'listenerWpaCtrlPtr' */
 		if (localContext->interface.hostapd.listenerWpaCtrlPtr == NULL)
 		{
-			printf("%s; listenerWpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
+			PRINT_ERROR("%s; listenerWpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
 		if ((ret = wpa_ctrl_detach(localContext->interface.hostapd.listenerWpaCtrlPtr)) != 0)
 		{
-			printf("%s; wpa_ctrl_detach of listener (radioName= '%s') returned ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName, ret);
+			PRINT_ERROR("%s; wpa_ctrl_detach of listener (VAPName= '%s') returned ERROR (ret= %d) ==> Abort!\n",
+			            __FUNCTION__, localContext->interface.hostapd.VAPName, ret);
 			return DWPAL_FAILURE;
 		}
 		wpa_ctrl_close(localContext->interface.hostapd.listenerWpaCtrlPtr);
@@ -1652,8 +1712,8 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 
 	localContext->interface.hostapd.wpaCtrlPtr = NULL;
 	localContext->interface.hostapd.listenerWpaCtrlPtr = NULL;
-	strcpy_s(localContext->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "\0");
-	strcpy_s(localContext->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "\0");
+	localContext->interface.hostapd.operationMode[0] = '\0';
+	localContext->interface.hostapd.wpaCtrlName[0] = '\0';
 
 	localContext->interface.hostapd.fd = -1;
 
@@ -1664,70 +1724,70 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 }
 
 
-DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radioName, DWPAL_wpaCtrlEventCallback wpaCtrlEventCallback)
+DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPName, DWPAL_wpaCtrlEventCallback wpaCtrlEventCallback)
 {
 	DWPAL_Context *localContext;
 	char          wpaCtrlName[DWPAL_WPA_CTRL_STRING_LENGTH];
 
-	//printf("%s; radioName= '%s', wpaCtrlEventCallback= 0x%x\n", __FUNCTION__, radioName, (unsigned int)wpaCtrlEventCallback);
+	//PRINT_DEBUG("%s; VAPName= '%s', wpaCtrlEventCallback= 0x%x\n", __FUNCTION__, VAPName, (unsigned int)wpaCtrlEventCallback);
 
 	if (context == NULL)
 	{
-		printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	if (radioName == NULL)
+	if (VAPName == NULL)
 	{
-		printf("%s; radioName is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	/* Temporary due to two-way socket hostapd bug */
 	if (wpaCtrlEventCallback != NULL)
 	{  /* Valid wpaCtrlEventCallback states that this is a two-way connection (for both command and events) */
-		printf("%s; currently, two-way connection (for '%s') is NOT supported - use one-way connection ==> Abort!\n", __FUNCTION__, radioName);
+		PRINT_ERROR("%s; currently, two-way connection (for '%s') is NOT supported - use one-way connection ==> Abort!\n", __FUNCTION__, VAPName);
 		return DWPAL_FAILURE;
 	}
 
 	*context = malloc(sizeof(DWPAL_Context));
 	if (*context == NULL)
 	{
-		printf("%s; malloc for context failed ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; malloc for context failed ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	localContext = (DWPAL_Context *)(*context);
 
-	strncpy((void *)(localContext->interface.hostapd.radioName), radioName, DWPAL_RADIO_NAME_STRING_LENGTH);
-	localContext->interface.hostapd.radioName[sizeof(localContext->interface.hostapd.radioName) - 1] = '\0';
+	strncpy((void *)(localContext->interface.hostapd.VAPName), VAPName, DWPAL_VAP_NAME_STRING_LENGTH);
+	localContext->interface.hostapd.VAPName[sizeof(localContext->interface.hostapd.VAPName) - 1] = '\0';
 	localContext->interface.hostapd.fd = -1;
 	localContext->interface.hostapd.wpaCtrlPtr = NULL;
 	localContext->interface.hostapd.wpaCtrlEventCallback = wpaCtrlEventCallback;
 
 	/* check if '/var/run/hostapd/wlanX' or '/var/run/wpa_supplicant/wlanX' exists, and update context's database */
-	snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", localContext->interface.hostapd.radioName);
+	snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", localContext->interface.hostapd.VAPName);
 	if (access(wpaCtrlName, F_OK) == 0)
 	{
-		//printf("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, localContext->interface.hostapd.radioName);
-		strcpy_s(localContext->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "AP");
-		strcpy_s(localContext->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, wpaCtrlName);
+		//PRINT_DEBUG("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+		STRCPY_S(localContext->interface.hostapd.operationMode, 3, "AP");
+		STRCPY_S(localContext->interface.hostapd.wpaCtrlName, STRNLEN_S(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
 	}
 	else
 	{
-		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", localContext->interface.hostapd.radioName);
+		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", localContext->interface.hostapd.VAPName);
 		if (access(wpaCtrlName, F_OK) == 0)
 		{
-			//printf("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, localContext->interface.hostapd.radioName);
-			strcpy_s(localContext->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "STA");
-			strcpy_s(localContext->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, wpaCtrlName);
+			//PRINT_DEBUG("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+			STRCPY_S(localContext->interface.hostapd.operationMode, 4, "STA");
+			STRCPY_S(localContext->interface.hostapd.wpaCtrlName, STRNLEN_S(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
 		}
 		else
 		{
-			strcpy_s(localContext->interface.hostapd.operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "\0");
-			strcpy_s(localContext->interface.hostapd.wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "\0");
+			localContext->interface.hostapd.operationMode[0] = '\0';
+			localContext->interface.hostapd.wpaCtrlName[0] = '\0';
 
-			//printf("%s; radio interface '%s' not present ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+			//PRINT_ERROR("%s; radio interface '%s' not present ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 	}
@@ -1735,20 +1795,20 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 	localContext->interface.hostapd.wpaCtrlPtr = wpa_ctrl_open(localContext->interface.hostapd.wpaCtrlName);
 	if (localContext->interface.hostapd.wpaCtrlPtr == NULL)
 	{
-		printf("%s; wpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+		PRINT_ERROR("%s; wpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 		return DWPAL_FAILURE;
 	}
 
 	if (localContext->interface.hostapd.wpaCtrlEventCallback != NULL)
 	{  /* Valid wpaCtrlEventCallback states that this is a two-way connection (for both command and events) */
-		printf("%s; set up two-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+		PRINT_DEBUG("%s; set up two-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 
 		/* Reset listenerWpaCtrlPtr which used only in one-way connection */
 		localContext->interface.hostapd.listenerWpaCtrlPtr = NULL;
 
 		if (wpa_ctrl_attach(localContext->interface.hostapd.wpaCtrlPtr) != 0)
 		{
-			printf("%s; wpa_ctrl_attach for '%s' failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+			PRINT_ERROR("%s; wpa_ctrl_attach for '%s' failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 
@@ -1757,16 +1817,16 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *radi
 	else
 	{  /* wpaCtrlEventCallback is NULL ==> turn on the event listener in an additional socket */
 		localContext->interface.hostapd.listenerWpaCtrlPtr = wpa_ctrl_open(localContext->interface.hostapd.wpaCtrlName);
-		printf("%s; set up one-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+		PRINT_DEBUG("%s; set up one-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 		if (localContext->interface.hostapd.listenerWpaCtrlPtr == NULL)
 		{
-			printf("%s; listenerWpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+			PRINT_ERROR("%s; listenerWpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 
 		if (wpa_ctrl_attach(localContext->interface.hostapd.listenerWpaCtrlPtr) != 0)
 		{
-			printf("%s; wpa_ctrl_attach for '%s' listener failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.radioName);
+			PRINT_ERROR("%s; wpa_ctrl_attach for '%s' listener failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 

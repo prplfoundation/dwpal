@@ -1,26 +1,37 @@
-# fapi_wlan source Makefile
+# wav-dpal source Makefile
 
-PKG_NAME := libfapiwlancommon
+PKG_NAME := libdwpal
+MAJOR := 0
+MINOR := 1
+VERSION := $(MAJOR).$(MINOR)
+
+opt_no_flags := -Werror -Wcast-qual
 
 LOG_CFLAGS := -DPACKAGE_ID=\"FAPIWLAN\" -DLOGGING_ID="fapiwlan" -DLOG_LEVEL=7 -DLOG_TYPE=1
+EXTRALDFLAGS := -L./ -ldwpal -lcurses -lreadline -lrt -lpthread
+EXTRACFLAGS := -I./include -DCONFIG_CTRL_IFACE -DCONFIG_CTRL_IFACE_UNIX -DYOCTO
 
-LIBRARY = libfapiwlancommon.so
-#CCSP module is not included
-LIB_OBJS = fapi_wlan.o wlan_config_server_api.o help_list.o help_debug.o fapi_wlan_beerock.o fapi_wlan_tools.o
-EXTRALDFLAGS := -L./ -lfapiwlancommon  -ldl -lhelper -lrt
-
-COMPILE = $(CC) $(INCLUDES) $(CFLAGS) $(DEFS) $(CPPFLAGS) -I./include -DCONFIG_CTRL_IFACE -DCONFIG_CTRL_IFACE_UNIX -DYOCTO $(LOG_CFLAGS)
+LIB_OBJS := dwpal.o dwpal_ext.o wpa_ctrl.o os_unix.o
 
 %.o: %.c
-	$(COMPILE) -fPIC -MT $@ -MD -MP -MF $@.d -c -o $@ $<
+	$(CC) $(INCLUDES) $(CFLAGS) $(EXTRACFLAGS) $(LOG_CFLAGS) $(DEFS) $(CPPFLAGS) -fPIC -MT $@ -MD -MP -MF $@.d -c -o $@ $<
 
-$(LIBRARY): $(LIB_OBJS)
-	$(CC) -shared -fPIC -Wl,-soname,$@ $(LIB_OBJS) $(LDFLAGS) -o $@
+$(PKG_NAME).so.$(VERSION): $(LIB_OBJS)
+	$(CC) -shared -fPIC -Wl,-soname,$@ $(LIB_OBJS) $(LDFLAGS) -lnl-genl-3 -o $@
 
-fapi_wlan_cli: fapi_wlan_cli.o $(LIBRARY)
+$(PKG_NAME).so: $(PKG_NAME).so.$(VERSION)
+	ln -sf $< $@
+
+dwpal_debug_cli: dwpal_debug_cli.o $(PKG_NAME).so.$(VERSION) $(PKG_NAME).so
 	$(CC) -o $@ $< $(EXTRALDFLAGS) $(LDFLAGS)
 
-all: $(LIBRARY) fapi_wlan_cli
-
 .PHONY: all
+all: $(PKG_NAME).so.$(VERSION) dwpal_debug_cli $(PKG_NAME).so
+
+.PHONY: clean
+clean:
+	@rm -f $(LIB_OBJS)
+	@rm -f lib$(NAME).so*
+	@rm -f dwpal_debug_cli.o dwpal_debug_cli
+	@rm -f *.o.d
 
