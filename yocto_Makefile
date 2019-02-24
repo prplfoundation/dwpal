@@ -9,7 +9,7 @@ opt_no_flags := -Werror -Wcast-qual
 
 LOG_CFLAGS := -DPACKAGE_ID=\"FAPIWLAN\" -DLOGGING_ID="fapiwlan" -DLOG_LEVEL=7 -DLOG_TYPE=1
 EXTRALDFLAGS := -L./ -ldwpal -lcurses -lreadline -lrt -lpthread
-EXTRACFLAGS := -I../include -DCONFIG_CTRL_IFACE -DCONFIG_CTRL_IFACE_UNIX -DYOCTO
+EXTRACFLAGS := -I./include -DCONFIG_CTRL_IFACE -DCONFIG_CTRL_IFACE_UNIX -DYOCTO
 
 LIB_OBJS := dwpal.o dwpal_ext.o wpa_ctrl.o os_unix.o
 
