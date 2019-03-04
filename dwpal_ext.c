@@ -607,6 +607,272 @@ DWPAL_Ret dwpal_ext_hostap_cmd_send(char *VAPName, char *cmdHeader, FieldsToCmdP
 }
 
 
+DWPAL_Ret dwpal_wlan_sta_allow(char* VAPName, char* MACAddress)
+{
+    char   		*reply = (char *)malloc((size_t)(32 * sizeof(char)));
+	size_t  	replyLen = 32 * sizeof(char) - 1;
+	DWPAL_Ret 	ret;
+    char     	cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
+
+    snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "STA_ALLOW %s", MACAddress);
+    ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
+
+    if (ret == DWPAL_FAILURE)
+    {
+        PRINT_ERROR("%s; STA_ALLOW command send error\n", __FUNCTION__);
+    }
+    else
+    {
+        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+
+        if (replyLen >= 2 && !strncmp(reply, "OK", strnlen_s("OK", RSIZE_MAX_STR)))
+        {
+            PRINT_DEBUG("%s; Sucessfully Allowed %s on %s\n", __FUNCTION__, MACAddress, VAPName);
+        }
+        else
+        {
+            PRINT_ERROR("%s; STA_ALLOW %s command returned FAIL!\n", __FUNCTION__, MACAddress);
+            free((void *)reply);
+            return DWPAL_FAILURE;
+        }
+    }
+
+    free((void *)reply);
+
+    return DWPAL_SUCCESS;
+}
+
+
+DWPAL_Ret dwpal_wlan_bss_transition_management_req(char* VAPName, char* MACAddress, int pref, int disassoc_imminent, int disassoc_timer, char *neighbor)
+{
+    char   		*reply = (char *)malloc((size_t)(32 * sizeof(char)));
+	size_t  	replyLen = 32 * sizeof(char) - 1;
+	DWPAL_Ret 	ret;
+    char     	cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
+
+	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "BSS_TM_REQ %s pref=%d disassoc_imminent=%d disassoc_timer=%d neighbor=%s",
+												 MACAddress, pref, disassoc_imminent, disassoc_timer, neighbor);
+    ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
+
+    if (ret == DWPAL_FAILURE)
+    {
+        PRINT_ERROR("%s; BSS_TM_REQ command send error\n", __FUNCTION__);
+    }
+    else
+    {
+        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+
+		if (replyLen >= 4 && !strncmp(reply, "FAIL", strnlen_s("FAIL", RSIZE_MAX_STR)))
+        {
+			PRINT_ERROR("%s; BSS_TM_REQ %s command returned FAIL!\n", __FUNCTION__, MACAddress);
+			free((void *)reply);
+            return DWPAL_FAILURE;
+		}
+        else
+        {
+            PRINT_DEBUG("%s; Sucessfully made a tm request for %s\n", __FUNCTION__, MACAddress);
+        }
+    }
+
+	free((void *)reply);
+
+    return DWPAL_SUCCESS;
+}
+
+
+DWPAL_Ret dwpal_wlan_sta_deny(char* VAPName, char* MACAddress)
+{
+    char      	*reply = (char *)malloc((size_t)(32 * sizeof(char)));
+	size_t  	replyLen = 32 * sizeof(char) - 1;
+	DWPAL_Ret 	ret;
+    char   		cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
+
+    snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "DENY_MAC %s 0", MACAddress);
+    ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
+
+    if (ret == DWPAL_FAILURE)
+    {
+        PRINT_ERROR("%s; DENY_MAC command send error\n", __FUNCTION__);
+    }
+    else
+    {
+        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+
+        if (replyLen >= 2 && !strncmp(reply, "OK", strnlen_s("OK", RSIZE_MAX_STR)))
+        {
+            PRINT_DEBUG("%s; Sucessfully Blacklisted %s on %s\n", __FUNCTION__, MACAddress, VAPName);
+        }
+        else
+        {
+            PRINT_ERROR("%s; DENY_MAC %s command returned FAIL!\n", __FUNCTION__, MACAddress);
+            free((void *)reply);
+            return DWPAL_FAILURE;
+        }
+    }
+
+    free((void *)reply);
+
+    return DWPAL_SUCCESS;
+}
+
+
+DWPAL_Ret dwpal_wlan_sta_measurement_get(char* VAPName, char *MACAddress, FieldsToParse fieldsToParse[])
+{
+	char     	*reply = (char *)malloc((size_t)(HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char)));
+	size_t    	replyLen = HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char) - 1;
+	DWPAL_Ret 	ret;
+	char       	cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
+
+	if (reply == NULL)
+	{
+		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
+	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
+	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "GET_STA_MEASUREMENTS %s %s", VAPName, MACAddress);
+	ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
+
+	if (ret == DWPAL_FAILURE)
+	{
+		PRINT_ERROR("%s; GET_STA_MEASUREMENTS command send error\n", __FUNCTION__);
+	}
+	else
+	{
+		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+
+		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
+		{
+			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			free((void *)reply);
+			return DWPAL_FAILURE;
+		}
+
+		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	}
+
+	free((void *)reply);
+
+	return DWPAL_SUCCESS;
+}
+
+
+DWPAL_Ret dwpal_wlan_vap_measurements_get(char* VAPName, FieldsToParse fieldsToParse[])
+{
+	char     	*reply = (char *)malloc((size_t)(HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char)));
+	size_t    	replyLen = HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char) - 1;
+	DWPAL_Ret 	ret;
+	char       	cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
+
+	if (reply == NULL)
+	{
+		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
+	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
+	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "GET_VAP_MEASUREMENTS %s", VAPName);
+	ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
+
+	if (ret == DWPAL_FAILURE)
+	{
+		PRINT_ERROR("%s; GET_VAP_MEASUREMENTS command send error\n", __FUNCTION__);
+	}
+	else
+	{
+		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+
+		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
+		{
+			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			free((void *)reply);
+			return DWPAL_FAILURE;
+		}
+
+		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	}
+
+	free((void *)reply);
+
+	return DWPAL_SUCCESS;
+}
+
+
+DWPAL_Ret dwpal_wlan_radio_info_get(char* VAPName, FieldsToParse fieldsToParse[])
+{
+	char    	*reply = (char *)malloc((size_t)(HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char)));
+	size_t    	replyLen = HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char) - 1;
+	DWPAL_Ret 	ret;
+
+	if (reply == NULL)
+	{
+		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
+	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
+	ret = dwpal_ext_hostap_cmd_send(VAPName, "GET_RADIO_INFO", NULL, reply, &replyLen);
+
+	if (ret == DWPAL_FAILURE)
+	{
+		PRINT_ERROR("%s; GET_RADIO_INFO command send error\n", __FUNCTION__);
+	}
+	else
+	{
+		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+
+		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
+		{
+			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			free((void *)reply);
+			return DWPAL_FAILURE;
+		}
+
+		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	}
+
+	free((void *)reply);
+
+	return DWPAL_SUCCESS;
+}
+
+
+DWPAL_Ret dwpal_wlan_sta_disassociate(char* VAPName, char* MACAddress)
+{
+    char                        *reply = (char *)malloc((size_t)(32 * sizeof(char)));
+	size_t                      replyLen = 32 * sizeof(char) - 1;
+	DWPAL_Ret                   ret;
+    char                        cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
+
+    snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "DISASSOCIATE %s %s", VAPName, MACAddress);
+    ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
+
+    if (ret == DWPAL_FAILURE)
+    {
+        PRINT_ERROR("%s; DISASSOCIATE command send error\n", __FUNCTION__);
+    }
+    else
+    {
+        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+
+        if (replyLen >= 2 && !strncmp(reply, "OK", strnlen_s("OK", RSIZE_MAX_STR)))
+        {
+            PRINT_DEBUG("%s; Sucessfully disconnected %s\n", __FUNCTION__, MACAddress);
+        }
+        else
+        {
+            PRINT_ERROR("%s; DISASSOCIATE %s command returned FAIL!\n", __FUNCTION__, MACAddress);
+            free((void *)reply);
+            return DWPAL_FAILURE;
+        }
+    }
+
+    free((void *)reply);
+
+    return DWPAL_SUCCESS;
+}
+
+
 DWPAL_Ret dwpal_ext_hostap_interface_detach(char *VAPName)
 {
 	int idx;
