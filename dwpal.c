@@ -139,25 +139,10 @@ static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 
 static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int totalSizeOfArg, char fieldValue[] /*OUT*/)
 {
-	char *param;
-	char *localBuf = NULL;
-
-	if (buf != NULL)
-	{
-		localBuf = strdup(buf);
-		if (localBuf == NULL)
-		{
-			PRINT_ERROR("%s; localBuf is NULL ==> Abort!\n", __FUNCTION__);
-			return false;
-		}
-	}
-
-	param = STRTOK_S(localBuf, bufLen, " ", p2str);
+	char *param = STRTOK_S(buf, bufLen, " ", p2str);
 	if (param == NULL)
 	{
 		PRINT_ERROR("%s; param is NULL ==> Abort!\n", __FUNCTION__);
-		if (localBuf != NULL)
-			free((void *)localBuf);
 		return false;
 	}
 
@@ -165,21 +150,11 @@ static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int 
 	{
 		if (STRNLEN_S(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) > (size_t)(totalSizeOfArg - 1))
 		{
-			if (localBuf != NULL)
-			{
-				free((void *)localBuf);
-			}
-
 			PRINT_ERROR("%s; param ('%s') length (%d) is higher than allocated size (%d) ==> Abort!\n", __FUNCTION__, param, STRNLEN_S(param, totalSizeOfArg), totalSizeOfArg-1);
 			return false;
 		}
 
 		STRCPY_S(fieldValue, STRNLEN_S(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, param);
-	}
-
-	if (localBuf != NULL)
-	{
-		free((void *)localBuf);
 	}
 
 	return true;
@@ -1008,6 +983,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 	while ( (lineMsg != NULL) && (ret == DWPAL_SUCCESS) )
 	{
 		void *field;
+		char *localMsgDup = NULL;
 
 		//PRINT_DEBUG("%s; [2] lineMsg= '%s'\n", __FUNCTION__, lineMsg);
 
@@ -1023,13 +999,27 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_STR_PARAM:
 					if (fieldsToParse[i].stringToSearch == NULL)
 					{  /* Handle mandatory parameters WITHOUT any string-prefix */
+						if (localMsg) {
+							localMsgDup = strdup(localMsg);
+							if (localMsgDup == NULL)
+							{
+								PRINT_ERROR("%s; localMsgDup is NULL, Failed strdup==> Abort!\n", __FUNCTION__);
+								return false;
+							}
+						}
+
 						dmaxLenMandatory = (rsize_t)STRNLEN_S(lineMsg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
-						if (mandatoryFieldValueGet(localMsg /*will be NULL starting from 2nd param*/,
+						if (mandatoryFieldValueGet( ((localMsg) ? localMsgDup : NULL), /*will be NULL starting from 2nd param*/
 						                           &dmaxLenMandatory,
 						                           &p2strMandatory,
 						                           (int)fieldsToParse[i].totalSizeOfArg,
 						                           (char *)field /*OUT*/) == false)
 						{
+							if (localMsgDup != NULL)
+							{
+								free((void *)localMsgDup);
+								localMsgDup = NULL;
+							}
 							PRINT_ERROR("%s; mandatory is NULL ==> Abort!\n", __FUNCTION__);
 							ret = DWPAL_FAILURE;  /* mandatory parameter is missing ==> Abort! */
 						}
@@ -1381,6 +1371,11 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			}
 
 			i++;
+		}
+
+		if (localMsgDup != NULL)
+		{
+			free((void *)localMsgDup);
 		}
 
 		lineMsg = STRTOK_S(NULL, &dmaxLen, "\n", &p2str);
