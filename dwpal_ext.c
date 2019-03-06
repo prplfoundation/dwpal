@@ -50,8 +50,13 @@ typedef struct
 } DwpalService;
 
 
+size_t        *getOutLen = NULL;
+unsigned char *getOutData = NULL;
+int           getVendorSubcmd = -1;
+
 static DwpalService *dwpalService[NUM_OF_SUPPORTED_VAPS + 1] = { [0 ... NUM_OF_SUPPORTED_VAPS ] = NULL };  /* add 1 place for NL */
 static void *context[sizeof(dwpalService) / sizeof(DwpalService *)]= { [0 ... (sizeof(dwpalService) / sizeof(DwpalService *) - 1) ] = NULL };;
+static int dwpal_command_get_ended = (-1);
 
 
 static DWPAL_Ret interfaceIndexGet(char *interfaceType, char *VAPName, int *idx)
@@ -465,11 +470,163 @@ static DWPAL_Ret listenerThreadSet(DwpalThreadOperation threadOperation)
 }
 
 
-DWPAL_Ret dwpal_ext_driver_nl_cmd_send(char *ifname, unsigned int nl80211Command, CmdIdType cmdIdType, unsigned int subCommand, unsigned char *vendorData, size_t vendorDataSize)
+static DWPAL_Ret dwpal_command_get_ended_socket_wait(char *socketName, bool *isReceived)
 {
-	int i, idx;
+	int    res;
+	fd_set rfds;
+	struct timeval tv;
 
-	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x, vendorDataSize= %d\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand, vendorDataSize);
+	*isReceived = false;
+
+	if (dwpal_command_get_ended <= 0)
+	{
+		PRINT_ERROR("%s; dwpal_command_get_ended= %d ==> Abort!\n", __FUNCTION__, dwpal_command_get_ended);
+		return DWPAL_FAILURE;
+	}
+
+	/* Receive the msg */
+	while (1)
+	{
+		FD_ZERO(&rfds);
+		FD_SET(dwpal_command_get_ended, &rfds);
+
+		tv.tv_sec = 1;
+		tv.tv_usec = 0;
+
+		res = select(dwpal_command_get_ended + 1, &rfds, NULL, NULL, &tv);
+		if (res < 0)
+		{
+			PRINT_ERROR("%s; select() return value= %d ==> cont...; errno= %d ('%s') ==> expected behavior when 'Interrupted system call'\n", __FUNCTION__, res, errno, strerror(errno));
+			continue;
+		}
+
+		if (FD_ISSET(dwpal_command_get_ended, &rfds))
+		{  /* the select() was triggered due to the above daemon fd */
+			PRINT_DEBUG("%s; right event indication received ==> break\n", __FUNCTION__);
+			*isReceived = true;
+			break;
+		}
+
+		PRINT_DEBUG("%s; the right event indication was NOT received ==> break\n", __FUNCTION__);
+		*isReceived = true;
+		break;
+	}
+
+	if (dwpal_command_get_ended != (-1))
+	{
+		if (close(dwpal_command_get_ended) == (-1))
+		{
+			PRINT_ERROR("%s; close() fail; dwpal_command_get_ended= %d; errno= %d ('%s')\n", __FUNCTION__, dwpal_command_get_ended, errno, strerror(errno));
+		}
+
+		unlink(socketName);
+		dwpal_command_get_ended = (-1);
+	}
+
+	return DWPAL_SUCCESS;
+}
+
+
+static int fdDaemonSet(char *socketName, int *fd /* output param */)
+{
+	struct sockaddr_un un;
+	size_t len;
+
+	if ((*fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+	{
+		PRINT_ERROR("%s; create socket fail; socketName= '%s'; errno= %d ('%s')\n", __FUNCTION__, socketName, errno, strerror(errno));
+		return DWPAL_FAILURE;
+    }
+
+	PRINT_DEBUG("%s; fd_daemon (socketName='%s') = %d\n", __FUNCTION__, socketName, *fd);
+
+	unlink(socketName);   /* in case it already exists */
+
+    /* fill in socket address structure */
+	memset(&un, 0, sizeof(un));
+	un.sun_family = AF_UNIX;
+	strcpy_s(un.sun_path, sizeof(un.sun_path) - 1, socketName);
+	len = offsetof(struct sockaddr_un, sun_path) + strnlen_s(socketName, SOCKET_NAME_LENGTH);
+
+    /* bind the name to the descriptor */
+	if (bind(*fd, (struct sockaddr *)&un, len) < 0)  // check if can use connect() instead...
+	{
+		PRINT_DEBUG("%s; bind() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
+
+		if (close(*fd) == (-1))
+		{
+			PRINT_ERROR("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
+		}
+
+		return DWPAL_FAILURE;
+    }
+
+	if (chmod(socketName, 0666) < 0)
+	{
+		PRINT_DEBUG("%s; FAIL to chmod '%s' to 0666\n", __FUNCTION__, socketName);
+
+		if (close(*fd) == (-1))
+		{
+			PRINT_ERROR("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
+		}
+
+		unlink(socketName);
+		return DWPAL_FAILURE;
+    }
+
+	if (listen(*fd, 10 /*Q Length*/) < 0)
+	{ /* tell kernel we're a server */
+		PRINT_DEBUG("%s; listen fail\n", __FUNCTION__);
+
+		if (close(*fd) == (-1))
+		{
+			PRINT_ERROR("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
+		}
+
+		unlink(socketName);
+		return DWPAL_FAILURE;
+	}
+
+	PRINT_DEBUG("%s; fd_daemon (socketName='%s') = %d\n", __FUNCTION__, socketName, *fd);
+
+	return DWPAL_SUCCESS;
+}
+
+
+static DWPAL_Ret dwpal_command_get_ended_socket_create(char *socketName)
+{
+	if (dwpal_command_get_ended > 0)
+	{
+		PRINT_DEBUG("%s; dwpal_command_get_ended (%d) ==> cont...\n", __FUNCTION__, dwpal_command_get_ended);
+		return DWPAL_SUCCESS;
+	}
+
+	if (fdDaemonSet(socketName, &dwpal_command_get_ended /*output*/) == DWPAL_FAILURE)
+	{
+		PRINT_ERROR("%s; ERROR; dwpal_command_get_ended= %d\n", __FUNCTION__, dwpal_command_get_ended);
+		return DWPAL_FAILURE;
+	}
+
+	return DWPAL_SUCCESS;
+}
+
+
+static DWPAL_Ret nl_cmd_handle(char *ifname,
+                               unsigned int nl80211Command,
+							   CmdIdType cmdIdType,
+							   unsigned int subCommand,
+							   unsigned char *vendorData,
+							   size_t vendorDataSize,
+							   size_t *outLen,
+							   unsigned char *outData,
+							   int vendorSubcmd)
+{
+	int    i, idx, ret;
+	bool   isReceived = false;
+	size_t lenToPrint;
+
+	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x, vendorDataSize= %d, outLen= 0x%x, outData= 0x%x\n",
+	            __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand, vendorDataSize, (unsigned int)outLen, (unsigned int)outData);
 
 	for (i=0; i < (int)vendorDataSize; i++)
 	{
@@ -484,13 +641,87 @@ DWPAL_Ret dwpal_ext_driver_nl_cmd_send(char *ifname, unsigned int nl80211Command
 
 	PRINT_DEBUG("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
-	return dwpal_driver_nl_cmd_send(context[idx],
-	                                ifname,
-	                                nl80211Command,
-	                                cmdIdType,
-	                                subCommand,
-	                                vendorData,
-	                                vendorDataSize);
+	if ( (outLen != NULL) && (outData != NULL) && (vendorSubcmd != -1) )
+	{
+		/* Handle a command which invokes an event with the output data */
+		pid_t pid = getpid();
+		char  socketName[SOCKET_NAME_LENGTH] = "\0";
+
+		getOutLen = outLen;
+		getOutData = outData;
+		getVendorSubcmd = vendorSubcmd;
+
+		snprintf(socketName, sizeof(socketName) - 1, "%s_%d", COMMAND_ENDED_SOCKET, pid);
+
+		if (dwpal_command_get_ended_socket_create(socketName) == DWPAL_FAILURE)
+		{
+			PRINT_ERROR("%s; dwpal_command_get_ended_socket_create returned ERROR ==> Abort!\n", __FUNCTION__);
+			return DWPAL_FAILURE;
+		}
+
+		ret = dwpal_driver_nl_cmd_send(context[idx],
+									   ifname,
+									   nl80211Command,
+									   cmdIdType,
+									   subCommand,
+									   vendorData,
+									   vendorDataSize);
+		if (ret == DWPAL_FAILURE)
+		{
+			PRINT_ERROR("%s; dwpal_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
+			return DWPAL_FAILURE;
+		}
+
+		dwpal_command_get_ended_socket_wait(socketName, &isReceived);
+		if (isReceived == false)
+		{
+			PRINT_ERROR("%s; vendorSubcmd (%d) was NOT received ==> Abort!\n", __FUNCTION__, vendorSubcmd);
+			*outLen = 0;
+			return DWPAL_FAILURE;
+		}
+
+		lenToPrint = (*outLen <= 10)? *outLen : 10;
+
+		for (i=0; i < (int)lenToPrint; i++)
+		{
+			PRINT_DEBUG(" 0x%x", outData[i]);
+		}
+		PRINT_DEBUG("\n");
+
+		return DWPAL_SUCCESS;
+	}
+	else
+	{
+		getOutLen = NULL;
+		getOutData = NULL;
+		getVendorSubcmd = -1;
+
+		return dwpal_driver_nl_cmd_send(context[idx],
+										ifname,
+										nl80211Command,
+										cmdIdType,
+										subCommand,
+										vendorData,
+										vendorDataSize);
+	}
+}
+
+
+/* APIs */
+
+DWPAL_Ret dwpal_ext_driver_nl_get(char *ifname, unsigned int nl80211Command, CmdIdType cmdIdType, unsigned int subCommand, unsigned char *vendorData, size_t vendorDataSize, size_t *outLen, unsigned char *outData, int vendorSubcmd)
+{
+	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand);
+
+	return nl_cmd_handle(ifname, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, outLen, outData, vendorSubcmd);
+}
+
+
+DWPAL_Ret dwpal_ext_driver_nl_cmd_send(char *ifname, unsigned int nl80211Command, CmdIdType cmdIdType, unsigned int subCommand, unsigned char *vendorData, size_t vendorDataSize)
+{
+	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x, vendorDataSize= %d\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand, vendorDataSize);
+
+	return nl_cmd_handle(ifname, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, NULL, NULL, -1);
 }
 
 
@@ -604,272 +835,6 @@ DWPAL_Ret dwpal_ext_hostap_cmd_send(char *VAPName, char *cmdHeader, FieldsToCmdP
 	}
 
 	return DWPAL_SUCCESS;
-}
-
-
-DWPAL_Ret dwpal_wlan_sta_allow(char* VAPName, char* MACAddress)
-{
-    char   		*reply = (char *)malloc((size_t)(32 * sizeof(char)));
-	size_t  	replyLen = 32 * sizeof(char) - 1;
-	DWPAL_Ret 	ret;
-    char     	cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
-
-    snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "STA_ALLOW %s", MACAddress);
-    ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
-
-    if (ret == DWPAL_FAILURE)
-    {
-        PRINT_ERROR("%s; STA_ALLOW command send error\n", __FUNCTION__);
-    }
-    else
-    {
-        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
-
-        if (replyLen >= 2 && !strncmp(reply, "OK", strnlen_s("OK", RSIZE_MAX_STR)))
-        {
-            PRINT_DEBUG("%s; Sucessfully Allowed %s on %s\n", __FUNCTION__, MACAddress, VAPName);
-        }
-        else
-        {
-            PRINT_ERROR("%s; STA_ALLOW %s command returned FAIL!\n", __FUNCTION__, MACAddress);
-            free((void *)reply);
-            return DWPAL_FAILURE;
-        }
-    }
-
-    free((void *)reply);
-
-    return DWPAL_SUCCESS;
-}
-
-
-DWPAL_Ret dwpal_wlan_bss_transition_management_req(char* VAPName, char* MACAddress, int pref, int disassoc_imminent, int disassoc_timer, char *neighbor)
-{
-    char   		*reply = (char *)malloc((size_t)(32 * sizeof(char)));
-	size_t  	replyLen = 32 * sizeof(char) - 1;
-	DWPAL_Ret 	ret;
-    char     	cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
-
-	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "BSS_TM_REQ %s pref=%d disassoc_imminent=%d disassoc_timer=%d neighbor=%s",
-												 MACAddress, pref, disassoc_imminent, disassoc_timer, neighbor);
-    ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
-
-    if (ret == DWPAL_FAILURE)
-    {
-        PRINT_ERROR("%s; BSS_TM_REQ command send error\n", __FUNCTION__);
-    }
-    else
-    {
-        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
-
-		if (replyLen >= 4 && !strncmp(reply, "FAIL", strnlen_s("FAIL", RSIZE_MAX_STR)))
-        {
-			PRINT_ERROR("%s; BSS_TM_REQ %s command returned FAIL!\n", __FUNCTION__, MACAddress);
-			free((void *)reply);
-            return DWPAL_FAILURE;
-		}
-        else
-        {
-            PRINT_DEBUG("%s; Sucessfully made a tm request for %s\n", __FUNCTION__, MACAddress);
-        }
-    }
-
-	free((void *)reply);
-
-    return DWPAL_SUCCESS;
-}
-
-
-DWPAL_Ret dwpal_wlan_sta_deny(char* VAPName, char* MACAddress)
-{
-    char      	*reply = (char *)malloc((size_t)(32 * sizeof(char)));
-	size_t  	replyLen = 32 * sizeof(char) - 1;
-	DWPAL_Ret 	ret;
-    char   		cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
-
-    snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "DENY_MAC %s 0", MACAddress);
-    ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
-
-    if (ret == DWPAL_FAILURE)
-    {
-        PRINT_ERROR("%s; DENY_MAC command send error\n", __FUNCTION__);
-    }
-    else
-    {
-        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
-
-        if (replyLen >= 2 && !strncmp(reply, "OK", strnlen_s("OK", RSIZE_MAX_STR)))
-        {
-            PRINT_DEBUG("%s; Sucessfully Blacklisted %s on %s\n", __FUNCTION__, MACAddress, VAPName);
-        }
-        else
-        {
-            PRINT_ERROR("%s; DENY_MAC %s command returned FAIL!\n", __FUNCTION__, MACAddress);
-            free((void *)reply);
-            return DWPAL_FAILURE;
-        }
-    }
-
-    free((void *)reply);
-
-    return DWPAL_SUCCESS;
-}
-
-
-DWPAL_Ret dwpal_wlan_sta_measurement_get(char* VAPName, char *MACAddress, FieldsToParse fieldsToParse[])
-{
-	char     	*reply = (char *)malloc((size_t)(HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char)));
-	size_t    	replyLen = HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char) - 1;
-	DWPAL_Ret 	ret;
-	char       	cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
-
-	if (reply == NULL)
-	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
-		return DWPAL_FAILURE;
-	}
-
-	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
-	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "GET_STA_MEASUREMENTS %s %s", VAPName, MACAddress);
-	ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
-
-	if (ret == DWPAL_FAILURE)
-	{
-		PRINT_ERROR("%s; GET_STA_MEASUREMENTS command send error\n", __FUNCTION__);
-	}
-	else
-	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
-
-		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
-		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
-			free((void *)reply);
-			return DWPAL_FAILURE;
-		}
-
-		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
-	}
-
-	free((void *)reply);
-
-	return DWPAL_SUCCESS;
-}
-
-
-DWPAL_Ret dwpal_wlan_vap_measurements_get(char* VAPName, FieldsToParse fieldsToParse[])
-{
-	char     	*reply = (char *)malloc((size_t)(HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char)));
-	size_t    	replyLen = HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char) - 1;
-	DWPAL_Ret 	ret;
-	char       	cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
-
-	if (reply == NULL)
-	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
-		return DWPAL_FAILURE;
-	}
-
-	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
-	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "GET_VAP_MEASUREMENTS %s", VAPName);
-	ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
-
-	if (ret == DWPAL_FAILURE)
-	{
-		PRINT_ERROR("%s; GET_VAP_MEASUREMENTS command send error\n", __FUNCTION__);
-	}
-	else
-	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
-
-		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
-		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
-			free((void *)reply);
-			return DWPAL_FAILURE;
-		}
-
-		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
-	}
-
-	free((void *)reply);
-
-	return DWPAL_SUCCESS;
-}
-
-
-DWPAL_Ret dwpal_wlan_radio_info_get(char* VAPName, FieldsToParse fieldsToParse[])
-{
-	char    	*reply = (char *)malloc((size_t)(HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char)));
-	size_t    	replyLen = HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char) - 1;
-	DWPAL_Ret 	ret;
-
-	if (reply == NULL)
-	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
-		return DWPAL_FAILURE;
-	}
-
-	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
-	ret = dwpal_ext_hostap_cmd_send(VAPName, "GET_RADIO_INFO", NULL, reply, &replyLen);
-
-	if (ret == DWPAL_FAILURE)
-	{
-		PRINT_ERROR("%s; GET_RADIO_INFO command send error\n", __FUNCTION__);
-	}
-	else
-	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
-
-		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
-		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
-			free((void *)reply);
-			return DWPAL_FAILURE;
-		}
-
-		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
-	}
-
-	free((void *)reply);
-
-	return DWPAL_SUCCESS;
-}
-
-
-DWPAL_Ret dwpal_wlan_sta_disassociate(char* VAPName, char* MACAddress)
-{
-    char                        *reply = (char *)malloc((size_t)(32 * sizeof(char)));
-	size_t                      replyLen = 32 * sizeof(char) - 1;
-	DWPAL_Ret                   ret;
-    char                        cmd[DWPAL_TO_HOSTAPD_MSG_LENGTH];
-
-    snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "DISASSOCIATE %s %s", VAPName, MACAddress);
-    ret = dwpal_ext_hostap_cmd_send(VAPName, cmd, NULL, reply, &replyLen);
-
-    if (ret == DWPAL_FAILURE)
-    {
-        PRINT_ERROR("%s; DISASSOCIATE command send error\n", __FUNCTION__);
-    }
-    else
-    {
-        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
-
-        if (replyLen >= 2 && !strncmp(reply, "OK", strnlen_s("OK", RSIZE_MAX_STR)))
-        {
-            PRINT_DEBUG("%s; Sucessfully disconnected %s\n", __FUNCTION__, MACAddress);
-        }
-        else
-        {
-            PRINT_ERROR("%s; DISASSOCIATE %s command returned FAIL!\n", __FUNCTION__, MACAddress);
-            free((void *)reply);
-            return DWPAL_FAILURE;
-        }
-    }
-
-    free((void *)reply);
-
-    return DWPAL_SUCCESS;
 }
 
 

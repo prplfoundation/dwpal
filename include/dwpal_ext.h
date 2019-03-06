@@ -11,27 +11,18 @@
 
 #include "dwpal.h"
 
-#define RSIZE_MAX_STR 256
 
 typedef int (*DwpalExtHostapEventCallback)(char *VAPName, char *opCode, char *msg, size_t msgStringLen);
 typedef DWPAL_nlEventCallback DwpalExtNlEventCallback;  /* DWPAL_Ret DWPAL_nlEventCallback(size_t len, unsigned char *data); */
 
 
 /* APIs */
+DWPAL_Ret dwpal_ext_driver_nl_get(char *ifname, unsigned int nl80211Command, CmdIdType cmdIdType, unsigned int subCommand, unsigned char *vendorData, size_t vendorDataSize, size_t *outLen, unsigned char *outData, int vendorSubcmd);
 DWPAL_Ret dwpal_ext_driver_nl_cmd_send(char *ifname, unsigned int nl80211Command, CmdIdType cmdIdType, unsigned int subCommand, unsigned char *vendorData, size_t vendorDataSize);
 DWPAL_Ret dwpal_ext_driver_nl_detach(void);
 DWPAL_Ret dwpal_ext_driver_nl_attach(DwpalExtNlEventCallback nlEventCallback);
 
 DWPAL_Ret dwpal_ext_hostap_cmd_send(char *VAPName, char *cmdHeader, FieldsToCmdParse *fieldsToCmdParse, char *reply /*OUT*/, size_t *replyLen /*IN/OUT*/);
-
-DWPAL_Ret dwpal_wlan_sta_measurement_get(char* VAPName, char* MACAddress, FieldsToParse fieldsToParse[]);
-DWPAL_Ret dwpal_wlan_vap_measurements_get(char* VAPName, FieldsToParse fieldsToParse[]);
-DWPAL_Ret dwpal_wlan_radio_info_get(char* VAPName, FieldsToParse fieldsToParse[]);
-DWPAL_Ret dwpal_wlan_sta_disassociate(char* VAPName, char* MACAddress);
-DWPAL_Ret dwpal_wlan_sta_deny(char* VAPName, char* MACAddress);
-DWPAL_Ret dwpal_wlan_sta_allow(char* VAPName, char* MACAddress);
-DWPAL_Ret dwpal_wlan_bss_transition_management_req(char* VAPName, char* MACAddress, int pref, int disassoc_imminent, int disassoc_timer, char *neighbor);
-
 DWPAL_Ret dwpal_ext_hostap_interface_detach(char *VAPName);
 DWPAL_Ret dwpal_ext_hostap_interface_attach(char *VAPName, DwpalExtHostapEventCallback eventCallback);
 
