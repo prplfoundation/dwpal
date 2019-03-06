@@ -320,7 +320,7 @@ DWPAL_Ret nlCliEventCallback(char *ifname, int event, int subevent, size_t len, 
 {
 	size_t i, lenToPrint = (len <= 10)? len : 10;
 
-	PRINT_DEBUG("%s Entry; ifname= '%s', event= %d, subevent= %d (len= %d))\n", __FUNCTION__, ifname, event, subevent, len);
+	PRINT_DEBUG("%s Entry; ifname= '%s', event= %d, subevent= %d (len= %d)\n", __FUNCTION__, ifname, event, subevent, len);
 
 	for (i=0; i < lenToPrint; i++)
 	{
@@ -2083,7 +2083,7 @@ static void dwpal_init(void)
 
 static void dwpal_debug_cli_readline_callback(char *strLine)
 {
-	int                             i, idx;
+	int                             i, idx, vendorSubcmd = -1;
 	char                            *p2str, *opCode, *VAPName = NULL, *hostapCmdOpcode, *field;
 	rsize_t                         dmaxLen;
 	static bool                     isDwpalExtenderMode = false;
@@ -2349,9 +2349,15 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					PRINT_ERROR("%s; dwpal_ext_hostap_interface_detach returned ERROR (VAPName= '%s') ==> Abort!\n", __FUNCTION__, VAPName);
 				}
 			}
-			else if (!strncmp(opCode, "DWPAL_DRIVER_NL_CMD_SEND", STRNLEN_S("DWPAL_DRIVER_NL_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH)))
+			else if ( (!strncmp(opCode, "DWPAL_DRIVER_NL_CMD_SEND", STRNLEN_S("DWPAL_DRIVER_NL_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH))) ||
+			          (!strncmp(opCode, "DWPAL_DRIVER_NL_GET", STRNLEN_S("DWPAL_DRIVER_NL_GET", DWPAL_GENERAL_STRING_LENGTH))) )
 			{
 				/* Examples:
+				   iw wlan2 iwlwav g11hRadarDetect
+				   { nl80211Command = NL80211_CMD_VENDOR=0x67}, { cmdIdType = DWPAL_NETDEV_ID=0 }, { sub_command=0x6b - LTQ_NL80211_VENDOR_SUBCMD_GET_11H_RADAR_DETECT = 107 (=0x6b) }
+				   "2" - Wait for vendor_subcmd (in this case, there's no "real" vendor_subcmd to wait for - we'll get back "-1")
+				   DWPAL_DRIVER_NL_GET wlan0 67 0 6b 0 2
+
 				   iw wlan2 iwlwav g11hRadarDetect
 				   { nl80211Command = NL80211_CMD_VENDOR=0x67}, { cmdIdType = DWPAL_NETDEV_ID=0 }, { sub_command=0x6b - LTQ_NL80211_VENDOR_SUBCMD_GET_11H_RADAR_DETECT = 107 (=0x6b) }
 				   DWPAL_DRIVER_NL_CMD_SEND wlan0 67 0 6b
@@ -2413,11 +2419,40 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					}
 				}
 
+				field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
+				if (field != NULL)
+				{
+					vendorSubcmd = (int)strtol(field, NULL, 16);
+				}
+
 				if (isDwpalExtenderMode)
 				{
-					if (dwpal_ext_driver_nl_cmd_send(VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize) == DWPAL_FAILURE)
+					if (!strncmp(opCode, "DWPAL_DRIVER_NL_CMD_SEND", STRNLEN_S("DWPAL_DRIVER_NL_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH)))
 					{
-						PRINT_ERROR("%s; dwpal_ext_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
+						if (dwpal_ext_driver_nl_cmd_send(VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize) == DWPAL_FAILURE)
+						{
+							PRINT_ERROR("%s; dwpal_ext_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
+						}
+					}
+					else
+					{
+						size_t        outLen;
+						unsigned char *outData = (unsigned char *)malloc(1024);
+
+						if (outData == NULL)
+						{
+							PRINT_ERROR("%s; outData malloc ERROR ==> Abort!\n", __FUNCTION__);
+						}
+						else if (vendorSubcmd == -1)
+						{
+							PRINT_ERROR("%s; vendorSubcmd MUST have a valid value (not '-1') ==> Abort!\n", __FUNCTION__);
+						}							
+						else if (dwpal_ext_driver_nl_get(VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, &outLen, outData, vendorSubcmd) == DWPAL_FAILURE)
+						{
+							PRINT_ERROR("%s; dwpal_ext_driver_nl_get returned ERROR ==> Abort!\n", __FUNCTION__);
+						}
+
+						free ((void *)outData);
 					}
 				}
 				else

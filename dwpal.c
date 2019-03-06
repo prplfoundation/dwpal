@@ -73,6 +73,10 @@ typedef struct
 } DWPAL_Context;
 
 
+extern size_t *getOutLen;
+extern unsigned char *getOutData;
+extern int getVendorSubcmd;
+
 
 /* Local static functions */
 
@@ -81,6 +85,69 @@ static int no_seq_check(struct nl_msg *msg, void *arg)
 	(void)msg;
 	(void)arg;
 	return NL_OK;
+}
+
+
+static int command_get_ended_msg_send(void)
+{
+    int                fd = -1, byte;
+	struct sockaddr_un un;
+	size_t             len;
+	char               socketName[SOCKET_NAME_LENGTH] = "\0";
+	pid_t              pid = getpid();
+
+	PRINT_ERROR("%s Entry\n", __FUNCTION__);
+
+	/* create a UNIX domain stream socket */
+	if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+	{
+		PRINT_ERROR("%s; create socket fail; pid= %d; errno= %d ('%s')\n", __FUNCTION__, pid, errno, strerror(errno));
+		return DWPAL_FAILURE;
+    }
+
+	/* fill socket address structure with server's address */
+	memset(&un, 0, sizeof(un));
+	un.sun_family = AF_UNIX;
+
+	snprintf(socketName, sizeof(socketName) - 1, "%s_%d", COMMAND_ENDED_SOCKET, pid);
+	strcpy_s(un.sun_path, SOCKET_NAME_LENGTH, socketName);
+	len = offsetof(struct sockaddr_un, sun_path) + strnlen_s(socketName, sizeof(socketName));
+
+	if (connect(fd, (struct sockaddr *)&un, len) < 0)
+	{
+		PRINT_ERROR("%s; connect() fail; pid= %d; errno= %d ('%s')\n",
+		       __FUNCTION__, pid, errno, strerror(errno));
+
+		if (close(fd) == (-1))
+		{
+			PRINT_ERROR("%s; close() fail; pid= %d; errno= %d ('%s')\n",
+				   __FUNCTION__, pid, errno, strerror(errno));
+		}
+
+		return DWPAL_FAILURE;
+	}
+
+	if ((byte = write(fd, NULL, 0)) == -1)
+	{
+		PRINT_ERROR("%s; write() fail; pid= %d; errno= %d ('%s')\n",
+		       __FUNCTION__, pid, errno, strerror(errno));
+
+		if (close(fd) == (-1))
+		{
+			PRINT_ERROR("%s; close() fail; pid= %d; errno= %d ('%s')\n",
+				   __FUNCTION__, pid, errno, strerror(errno));
+		}
+
+		return DWPAL_FAILURE;
+	}
+
+	if (close(fd) == (-1))
+	{
+		PRINT_ERROR("%s; close() fail; pid= %d; errno= %d ('%s')\n",
+		       __FUNCTION__, pid, errno, strerror(errno));
+	}
+
+	return DWPAL_SUCCESS;
 }
 
 
@@ -97,7 +164,7 @@ static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 		struct nlattr *tb[NL80211_ATTR_MAX + 1];
 		unsigned char *data;
 		int vendor_subcmd = -1;
-		char ifname[100] = "\0";
+		char ifname[DWPAL_VAP_NAME_STRING_LENGTH] = "\0";
 		int len;
 
 		nla_parse(tb,
@@ -116,7 +183,7 @@ static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 			return (int)DWPAL_FAILURE;
 		}
 
-		data = (unsigned char *) nla_data(attr);
+		data = (unsigned char *)nla_data(attr);
 		len = nla_len(attr);
 
 		if ( (gnlh->cmd == NL80211_CMD_VENDOR) && (tb[NL80211_ATTR_VENDOR_SUBCMD] != NULL) )
@@ -127,6 +194,22 @@ static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 		if (tb[NL80211_ATTR_IFINDEX] != NULL)
 		{
 			if_indextoname(nla_get_u32(tb[NL80211_ATTR_IFINDEX]), ifname);
+		}
+
+		if ( (getOutLen != NULL) && (getOutData != NULL) && (getVendorSubcmd != -1) )
+		{
+			PRINT_DEBUG("%s; vendor_subcmd= %d, getVendorSubcmd= %d\n", __FUNCTION__, vendor_subcmd, getVendorSubcmd);
+			if (vendor_subcmd == getVendorSubcmd)
+			{
+				PRINT_DEBUG("%s; vendor_subcmd (%d) found! ==> notify dwpal_ext\n", __FUNCTION__, vendor_subcmd);
+
+				memcpy_s((void *)getOutData, (rsize_t)len, (void *)data, (rsize_t)len);
+				*getOutLen = (size_t)len;
+
+				command_get_ended_msg_send();
+
+				return (int)DWPAL_SUCCESS;
+			}
 		}
 
 		/* Call the NL callback function */
@@ -140,6 +223,7 @@ static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int totalSizeOfArg, char fieldValue[] /*OUT*/)
 {
 	char *param = STRTOK_S(buf, bufLen, " ", p2str);
+
 	if (param == NULL)
 	{
 		PRINT_ERROR("%s; param is NULL ==> Abort!\n", __FUNCTION__);
@@ -999,27 +1083,24 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_STR_PARAM:
 					if (fieldsToParse[i].stringToSearch == NULL)
 					{  /* Handle mandatory parameters WITHOUT any string-prefix */
-						if (localMsg) {
+						if (localMsg != NULL)
+						{
 							localMsgDup = strdup(localMsg);
 							if (localMsgDup == NULL)
 							{
-								PRINT_ERROR("%s; localMsgDup is NULL, Failed strdup==> Abort!\n", __FUNCTION__);
-								return false;
+								PRINT_ERROR("%s; localMsgDup is NULL, Failed strdup ==> Abort!\n", __FUNCTION__);
+								ret = DWPAL_FAILURE;
+								break;
 							}
 						}
 
 						dmaxLenMandatory = (rsize_t)STRNLEN_S(lineMsg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
-						if (mandatoryFieldValueGet( ((localMsg) ? localMsgDup : NULL), /*will be NULL starting from 2nd param*/
+						if (mandatoryFieldValueGet(((localMsg != NULL)? localMsgDup : NULL) /*will be NULL starting from 2nd param*/,
 						                           &dmaxLenMandatory,
 						                           &p2strMandatory,
 						                           (int)fieldsToParse[i].totalSizeOfArg,
 						                           (char *)field /*OUT*/) == false)
 						{
-							if (localMsgDup != NULL)
-							{
-								free((void *)localMsgDup);
-								localMsgDup = NULL;
-							}
 							PRINT_ERROR("%s; mandatory is NULL ==> Abort!\n", __FUNCTION__);
 							ret = DWPAL_FAILURE;  /* mandatory parameter is missing ==> Abort! */
 						}
