@@ -44,6 +44,7 @@
 #define PRINT_ERROR(...)  printf(__VA_ARGS__)
 #endif
 
+#define NUM_OF_LISTENING_EVENTS 16
 
 DWPAL_Ret nlCliOneShotEventCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data);
 DWPAL_Ret nlCliEventCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data);
@@ -55,7 +56,7 @@ typedef struct
 	char *interfaceType;
 	char *radioName;
 	char *serviceName;
-	int  fd;
+	int  fd, fdCmdGet;
 } DwpalService;
 
 typedef struct
@@ -227,21 +228,22 @@ typedef struct
 
 
 #if 0
-static DwpalService dwpalService[] = { { "hostap", "wlan0", "TWO_WAY", -1 },  /* Will send commands and get events on the same socket */
+static DwpalService dwpalService[] = { { "hostap", "wlan0", "TWO_WAY", -1, -1 },  /* Will send commands and get events on the same socket */
 #else
-static DwpalService dwpalService[] = { { "hostap", "wlan0", "ONE_WAY", -1 },  /* Will send commands and get events on a different socket  */
+static DwpalService dwpalService[] = { { "hostap", "wlan0", "ONE_WAY", -1, -1 },  /* Will send commands and get events on a different socket  */
 #endif
-                                       { "hostap", "wlan1", "ONE_WAY", -1 },
-                                       { "hostap", "wlan2", "ONE_WAY", -1 },  /* Will send commands and get events on a different socket */
-                                       { "hostap", "wlan3", "ONE_WAY", -1 },
-                                       { "hostap", "wlan4", "ONE_WAY", -1 },
-                                       { "hostap", "wlan5", "ONE_WAY", -1 },
-                                       { "Driver", "ALL",   "TWO_WAY", -1 } };
+                                       { "hostap", "wlan1", "ONE_WAY", -1, -1 },
+                                       { "hostap", "wlan2", "ONE_WAY", -1, -1 },  /* Will send commands and get events on a different socket */
+                                       { "hostap", "wlan3", "ONE_WAY", -1, -1 },
+                                       { "hostap", "wlan4", "ONE_WAY", -1, -1 },
+                                       { "hostap", "wlan5", "ONE_WAY", -1, -1 },
+                                       { "Driver", "ALL",   "TWO_WAY", -1, -1 } };
 
 static void *context[sizeof(dwpalService) / sizeof(DwpalService)] = { [0 ... (sizeof(dwpalService) / sizeof(DwpalService) - 1) ] = NULL };
 static bool isCliRunning = true;
 static char oneShotCommand[DWPAL_TO_HOSTAPD_MSG_LENGTH] = "\0";
-static char opCodeForListener[DWPAL_OPCODE_STRING_LENGTH] = "\0";
+static int numOfListeningEvents = 0;
+static char opCodeForListener[NUM_OF_LISTENING_EVENTS][DWPAL_OPCODE_STRING_LENGTH] = { [0 ... (NUM_OF_LISTENING_EVENTS - 1)] = "\0" };  //"\0";
 static char oneShotVAPName[DWPAL_VAP_NAME_STRING_LENGTH] = "\0";
 static bool isContinueListening = true;
 
@@ -272,7 +274,7 @@ DWPAL_Ret nlCliOneShotEventCallback(char *ifname, int event, int subevent, size_
 		switch (subevent)
 		{
 			case LTQ_NL80211_VENDOR_EVENT_ASSERT_DUMP_READY:
-				if (!strncmp("FW_DUMP_READY", opCodeForListener, 13))
+				if (!strncmp("FW_DUMP_READY", opCodeForListener[0], 13))
 				{
 					if (!strncmp(ifname, oneShotVAPName, 5))
 					{
@@ -296,9 +298,9 @@ DWPAL_Ret nlCliOneShotEventCallback(char *ifname, int event, int subevent, size_
 		PRINT_DEBUG("%s; unsupported event (%d) received\n", __FUNCTION__, event);
 	}
 
-	if ( (oneShotCommand[0] != '\0') && (opCodeForListener[0] == '\0') )
+	if ( (oneShotCommand[0] != '\0') && (opCodeForListener[0][0] == '\0') )
 	{
-		/* Not waiting for a specific event ==> solicited event received (due to 'get' command) */
+		/* Not waiting for a specific event ==> solicited event received (due to 'get command') */
 		PRINT_DEBUG("%s; solicited event received => print first bytes (up to 10), and exit!\n", __FUNCTION__);
 
 		size_t i, lenToPrint = (len <= 10)? len : 10;
@@ -317,6 +319,22 @@ DWPAL_Ret nlCliOneShotEventCallback(char *ifname, int event, int subevent, size_
 
 
 DWPAL_Ret nlCliEventCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data)
+{
+	size_t i, lenToPrint = (len <= 10)? len : 10;
+
+	PRINT_DEBUG("%s Entry; ifname= '%s', event= %d, subevent= %d (len= %d)\n", __FUNCTION__, ifname, event, subevent, len);
+
+	for (i=0; i < lenToPrint; i++)
+	{
+		PRINT_DEBUG(" 0x%x", data[i]);
+	}
+	PRINT_DEBUG("\n");
+
+	return DWPAL_SUCCESS;
+}
+
+
+static DWPAL_Ret nlCliCmdGetCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data)
 {
 	size_t i, lenToPrint = (len <= 10)? len : 10;
 
@@ -589,11 +607,27 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					}
 					break;
 
+				case DWPAL_UNSIGNED_INT_PARAM:
+					if (*(fieldsToParse[i].numOfValidArgs) > 0)
+					{
+						isValid = true;
+						PRINT_DEBUG("%s; %s%s %u\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((unsigned int *)field));
+					}
+					break;
+
 				case DWPAL_LONG_LONG_INT_PARAM:
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{
 						isValid = true;
 						PRINT_DEBUG("%s; %s%s %lld\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((long long int *)field));
+					}
+					break;
+
+				case DWPAL_UNSIGNED_LONG_LONG_INT_PARAM:
+					if (*(fieldsToParse[i].numOfValidArgs) > 0)
+					{
+						isValid = true;
+						PRINT_DEBUG("%s; %s%s %llu\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((unsigned long long int *)field));
 					}
 					break;
 
@@ -1619,12 +1653,19 @@ static DWPAL_Ret dwpal_ap_sta_connected_event_parse(char *msg, size_t msgLen)
 
 static int dwpalOneShotEventCallback(char *radioName, char *opCode, char *msg, size_t msgStringLen)
 {
-	PRINT_DEBUG("%s; radioName= '%s', opCode= '%s', msgStringLen= %d, msg= '%s'\n", __FUNCTION__, radioName, opCode, msgStringLen, msg);
+	int i;
 
-	if (!strncmp(opCode, opCodeForListener, DWPAL_OPCODE_STRING_LENGTH))
+	PRINT_DEBUG("%s; radioName= '%s', opCode= '%s', msgStringLen= %d, msg= '%s' (numOfListeningEvents= %d)\n",
+	            __FUNCTION__, radioName, opCode, msgStringLen, msg, numOfListeningEvents);
+
+	for (i=0; i < numOfListeningEvents; i++)
 	{
-		PRINT_DEBUG("%s; radioName= '%s', opCode= '%s' received ==> Exit!!!\n", __FUNCTION__, radioName, opCode);
-		isContinueListening = false;
+		if (!strncmp(opCode, opCodeForListener[i], DWPAL_OPCODE_STRING_LENGTH))
+		{
+			PRINT_DEBUG("%s; radioName= '%s', opCode= '%s' received ==> Exit!!!\n", __FUNCTION__, radioName, opCode);
+			isContinueListening = false;
+			break;
+		}
 	}
 
 	return 0;
@@ -1830,7 +1871,7 @@ static void *listenerThreadStart(void *temp)
 			}
 			else if (!strncmp(dwpalService[i].interfaceType, "Driver", 7))
 			{
-				if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i].fd) == DWPAL_FAILURE)
+				if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i].fd, &dwpalService[i].fdCmdGet) == DWPAL_FAILURE)
 				{
 					/*PRINT_DEBUG("%s; dwpal_driver_nl_fd_get returned error ==> cont. (serviceName= '%s', radioName= '%s')\n",
 					       __FUNCTION__, dwpalService[i].serviceName, dwpalService[i].radioName);*/
@@ -1972,17 +2013,24 @@ static void *listenerThreadStart(void *temp)
 			}
 			else if (!strncmp(dwpalService[i].interfaceType, "Driver", 7))
 			{
-				if (dwpalService[i].fd > 0)
+				if ( (dwpalService[i].fd > 0) && (FD_ISSET(dwpalService[i].fd, &rfds)) )
 				{
-					if (FD_ISSET(dwpalService[i].fd, &rfds))
-					{
-						/*PRINT_DEBUG("%s; [Driver] event received; interfaceType= '%s', radioName= '%s', serviceName= '%s', dwpalService[%d].fd= %d\n",
-						       __FUNCTION__, dwpalService[i].interfaceType, dwpalService[i].radioName, dwpalService[i].serviceName, i, dwpalService[i].fd);*/
+					/*PRINT_DEBUG("%s; [Driver] event received; interfaceType= '%s', radioName= '%s', serviceName= '%s', dwpalService[%d].fd= %d\n",
+						   __FUNCTION__, dwpalService[i].interfaceType, dwpalService[i].radioName, dwpalService[i].serviceName, i, dwpalService[i].fd);*/
 
-						if (dwpal_driver_nl_msg_get(context[i], nlCliEventCallback) == DWPAL_FAILURE)
-						{
-							PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR; serviceName= '%s'\n", __FUNCTION__, dwpalService[i].serviceName);
-						}
+					if (dwpal_driver_nl_msg_get(context[i], DWPAL_NL_EVENT_GET, nlCliEventCallback) == DWPAL_FAILURE)
+					{
+						PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR; serviceName= '%s'\n", __FUNCTION__, dwpalService[i].serviceName);
+					}
+				}
+				else if ( (dwpalService[i].fdCmdGet > 0) && (FD_ISSET(dwpalService[i].fdCmdGet, &rfds)) )
+				{
+					/*PRINT_DEBUG("%s; [Driver] event received; interfaceType= '%s', radioName= '%s', serviceName= '%s', dwpalService[%d].fdCmdGet= %d\n",
+						   __FUNCTION__, dwpalService[i].interfaceType, dwpalService[i].radioName, dwpalService[i].serviceName, i, dwpalService[i].fdCmdGet);*/
+
+					if (dwpal_driver_nl_msg_get(context[i], DWPAL_NL_CMD_GET, nlCliCmdGetCallback) == DWPAL_FAILURE)
+					{
+						PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR; serviceName= '%s'\n", __FUNCTION__, dwpalService[i].serviceName);
 					}
 				}
 			}
@@ -2083,7 +2131,7 @@ static void dwpal_init(void)
 
 static void dwpal_debug_cli_readline_callback(char *strLine)
 {
-	int                             i, idx, vendorSubcmd = -1;
+	int                             i, idx;
 	char                            *p2str, *opCode, *VAPName = NULL, *hostapCmdOpcode, *field;
 	rsize_t                         dmaxLen;
 	static bool                     isDwpalExtenderMode = false;
@@ -2355,8 +2403,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				/* Examples:
 				   iw wlan2 iwlwav g11hRadarDetect
 				   { nl80211Command = NL80211_CMD_VENDOR=0x67}, { cmdIdType = DWPAL_NETDEV_ID=0 }, { sub_command=0x6b - LTQ_NL80211_VENDOR_SUBCMD_GET_11H_RADAR_DETECT = 107 (=0x6b) }
-				   "2" - Wait for vendor_subcmd (in this case, there's no "real" vendor_subcmd to wait for - we'll get back "-1")
-				   DWPAL_DRIVER_NL_GET wlan0 67 0 6b 0 2
+				   DWPAL_DRIVER_NL_GET wlan0 67 0 6b 0
 
 				   iw wlan2 iwlwav g11hRadarDetect
 				   { nl80211Command = NL80211_CMD_VENDOR=0x67}, { cmdIdType = DWPAL_NETDEV_ID=0 }, { sub_command=0x6b - LTQ_NL80211_VENDOR_SUBCMD_GET_11H_RADAR_DETECT = 107 (=0x6b) }
@@ -2419,12 +2466,6 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					}
 				}
 
-				field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
-				if (field != NULL)
-				{
-					vendorSubcmd = (int)strtol(field, NULL, 16);
-				}
-
 				if (isDwpalExtenderMode)
 				{
 					if (!strncmp(opCode, "DWPAL_DRIVER_NL_CMD_SEND", STRNLEN_S("DWPAL_DRIVER_NL_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH)))
@@ -2436,23 +2477,32 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					}
 					else
 					{
-						size_t        outLen;
+						size_t        outLen, lenToPrint;
 						unsigned char *outData = (unsigned char *)malloc(1024);
 
 						if (outData == NULL)
 						{
 							PRINT_ERROR("%s; outData malloc ERROR ==> Abort!\n", __FUNCTION__);
 						}
-						else if (vendorSubcmd == -1)
+						else
 						{
-							PRINT_ERROR("%s; vendorSubcmd MUST have a valid value (not '-1') ==> Abort!\n", __FUNCTION__);
-						}							
-						else if (dwpal_ext_driver_nl_get(VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, &outLen, outData, vendorSubcmd) == DWPAL_FAILURE)
-						{
-							PRINT_ERROR("%s; dwpal_ext_driver_nl_get returned ERROR ==> Abort!\n", __FUNCTION__);
-						}
+							memset(outData, '\0', 1024);
+							if (dwpal_ext_driver_nl_get(VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, &outLen, outData) == DWPAL_FAILURE)
+							{
+								PRINT_ERROR("%s; dwpal_ext_driver_nl_get returned ERROR ==> Abort!\n", __FUNCTION__);
+							}
 
-						free ((void *)outData);
+							lenToPrint = (outLen <= 10)? outLen : 10;
+
+							PRINT_DEBUG("%s; Output data from the 'get' function:\n", __FUNCTION__);
+							for (i=0; i < (int)lenToPrint; i++)
+							{
+								PRINT_DEBUG(" 0x%x", outData[i]);
+							}
+							PRINT_DEBUG("\n");
+
+							free ((void *)outData);
+						}
 					}
 				}
 				else
@@ -2465,7 +2515,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 					PRINT_DEBUG("%s; idx= %d\n", __FUNCTION__, idx);
 
-					if (dwpal_driver_nl_cmd_send(context[idx], VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize) == DWPAL_FAILURE)
+					if (dwpal_driver_nl_cmd_send(context[idx], DWPAL_NL_EVENT_GET, VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize) == DWPAL_FAILURE)
 					{
 						PRINT_ERROR("%s; dwpal_driver_nl_cmd_send (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
@@ -2482,15 +2532,6 @@ static void dwpalDebugCliStart(void)
 	fd_set rfds;
 
 	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
-
-#if 0
-	/* Start the listener thread */
-	if (listenerThreadCreate() == DWPAL_FAILURE)
-	{
-		PRINT_DEBUG("%s; listener thread failed ==> Abort!\n", __FUNCTION__);
-		return;
-	}
-#endif
 
     /* Init signals */
     init_signals();
@@ -2569,6 +2610,9 @@ int main(int argc, char *argv[])
 	   Start listener for wlan0 up until "AP-STA-CONNECTED" will be received:
 	   dwpal_debug_cli -ihostap -vwlan0 -l"AP-STA-CONNECTED"
 
+	   Start listener for wlan0 up until "AP-STA-DISCONNECTED" or "AP-STA-CONNECTED" will be received:
+	   dwpal_debug_cli -ihostap -vwlan0 -l"AP-STA-DISCONNECTED" -l"AP-STA-CONNECTED"
+
 	   Start endless NL socket listener
 	   dwpal_debug_cli -iDriver &
 
@@ -2602,6 +2646,7 @@ int main(int argc, char *argv[])
 	}
 	else
 	{  /* one-shot mode */
+		numOfListeningEvents = 0;
 		while ((option = getopt(argc, argv, "i:v:c:l:d:")) != -1)
 		{
 			PRINT_DEBUG("option= %d, optarg= '%s'\n", option, optarg);
@@ -2656,10 +2701,17 @@ int main(int argc, char *argv[])
 					break;
 
 				case 'l':
+					if (numOfListeningEvents >= NUM_OF_LISTENING_EVENTS)
+					{
+						PRINT_DEBUG("Ignore opCodeForListener ('%s') ==> number of events reached the limit (%d)\n", optarg, NUM_OF_LISTENING_EVENTS);
+						break;
+					}
+
 					stringLength = STRNLEN_S(optarg, DWPAL_OPCODE_STRING_LENGTH);
-					STRNCPY_S(opCodeForListener, sizeof(opCodeForListener), optarg, stringLength);
-					opCodeForListener[stringLength] = '\0';
-					PRINT_DEBUG("opCodeForListener= '%s'\n", opCodeForListener);
+					STRNCPY_S(opCodeForListener[numOfListeningEvents], sizeof(opCodeForListener[numOfListeningEvents]), optarg, stringLength);
+					opCodeForListener[numOfListeningEvents][stringLength] = '\0';
+					PRINT_DEBUG("opCodeForListener[%d]= '%s'\n", numOfListeningEvents, opCodeForListener[numOfListeningEvents]);
+					numOfListeningEvents++;
 					break;
 
 				case 'd':
@@ -2728,17 +2780,48 @@ int main(int argc, char *argv[])
 			{
 				if ( (oneShotVAPName[0] != '\0') && (oneShotCommand[0] != '\0') )
 				{
-					if (dwpal_ext_driver_nl_cmd_send(oneShotVAPName, NL80211_CMD_VENDOR, DWPAL_NETDEV_ID, (unsigned int)atoi(oneShotCommand), vendorData, vendorDataSize) == DWPAL_FAILURE)
+					if (vendorDataSize == 0)
+					{  /* 'Driver' with command to send but without any data ==> 'get command' */
+						size_t        outLen, lenToPrint;
+						unsigned char *outData = (unsigned char *)malloc(1024);
+
+						if (outData == NULL)
+						{
+							PRINT_ERROR("%s; outData malloc ERROR ==> Abort!\n", __FUNCTION__);
+						}
+						else
+						{
+							memset(outData, '\0', 1024);
+							if (dwpal_ext_driver_nl_get(oneShotVAPName, NL80211_CMD_VENDOR, DWPAL_NETDEV_ID, (unsigned int)atoi(oneShotCommand), vendorData, vendorDataSize, &outLen, outData) == DWPAL_FAILURE)
+							{
+								PRINT_ERROR("%s; dwpal_ext_driver_nl_get returned ERROR ==> Abort!\n", __FUNCTION__);
+							}
+
+							lenToPrint = (outLen <= 10)? outLen : 10;
+
+							PRINT_DEBUG("%s; Output data from the 'get' function:\n", __FUNCTION__);
+							for (i=0; i < (int)lenToPrint; i++)
+							{
+								PRINT_DEBUG(" 0x%x", outData[i]);
+							}
+							PRINT_DEBUG("\n");
+
+							free ((void *)outData);
+						}
+					}
+					else
 					{
-						PRINT_ERROR("%s; dwpal_ext_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
+						if (dwpal_ext_driver_nl_cmd_send(oneShotVAPName, NL80211_CMD_VENDOR, DWPAL_NETDEV_ID, (unsigned int)atoi(oneShotCommand), vendorData, vendorDataSize) == DWPAL_FAILURE)
+						{
+							PRINT_ERROR("%s; dwpal_ext_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
+						}
 					}
 				}
 			}
 		}
 
 		if ( ( (!strncmp(interfaceType, "hostap", 7)) && (oneShotCommand[0] == '\0') ) ||  /* 'hostap' without any command to send */
-		     ( (!strncmp(interfaceType, "Driver", 7)) && (oneShotCommand[0] == '\0') ) ||  /* 'Driver' without any command to send */
-		     ( (!strncmp(interfaceType, "Driver", 7)) && (oneShotCommand[0] != '\0') && (vendorDataSize == 0) ) )  /* 'Driver' with command to send but without any data */
+		     ( (!strncmp(interfaceType, "Driver", 7)) && (oneShotCommand[0] == '\0') ) )   /* 'Driver' without any command to send */
 		{
 			while (isContinueListening)
 			{
