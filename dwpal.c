@@ -1234,32 +1234,40 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					{
 						if (isEndFieldNameAllocated == false)
 						{
+							PRINT_ERROR("%s; DWPAL_STR_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 							ret = DWPAL_FAILURE;
 							break;
 						}
 
-						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						if (field == NULL)
 						{
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								(*(fieldsToParse[i].numOfValidArgs))++;
-							}
-
-							if ((STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1) > fieldsToParse[i].totalSizeOfArg)
-							{
-								PRINT_ERROR("%s; string length (%d) is bigger the allocated string size (%d)\n",
-								            __FUNCTION__, STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, fieldsToParse[i].totalSizeOfArg);
-								ret = DWPAL_FAILURE;  /* longer string then allocated ==> Abort! */
-							}
-							else
-							{
-								STRCPY_S((char *)field, STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, stringOfValues);
-							}
+							PRINT_ERROR("%s; DWPAL_STR_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 						}
 						else
 						{
-							isMissingParam = true;
+							memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+							if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+							{
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									(*(fieldsToParse[i].numOfValidArgs))++;
+								}
+
+								if ((STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1) > fieldsToParse[i].totalSizeOfArg)
+								{
+									PRINT_ERROR("%s; string length (%d) is bigger the allocated string size (%d)\n",
+												__FUNCTION__, STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, fieldsToParse[i].totalSizeOfArg);
+									ret = DWPAL_FAILURE;  /* longer string then allocated ==> Abort! */
+								}
+								else
+								{
+									STRCPY_S((char *)field, STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, stringOfValues);
+								}
+							}
+							else
+							{
+								isMissingParam = true;
+							}
 						}
 					}
 					break;
@@ -1270,369 +1278,465 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				   "... non_pref_chan=81:200:1:5 81:100:2:9 81:200:1:7 81:100:2:5 ..." */
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_STR_ARRAY_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_STR_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, (char *)field) == false)
-						{
-							PRINT_ERROR("%s; arrayValuesGet ERROR\n", __FUNCTION__);
-						}
+						PRINT_ERROR("%s; DWPAL_STR_ARRAY_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
-					}
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_STR_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, (char *)field) == false)
+							{
+								PRINT_ERROR("%s; arrayValuesGet ERROR\n", __FUNCTION__);
+							}
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 
-					if ( (fieldsToParse[i].numOfValidArgs != NULL) && (*(fieldsToParse[i].numOfValidArgs) == 0) )
-					{
-						isMissingParam = true;
+						if ( (fieldsToParse[i].numOfValidArgs != NULL) && (*(fieldsToParse[i].numOfValidArgs) == 0) )
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_CHAR_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_CHAR_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (strncmp(stringOfValues, "UNKNOWN", 8))
-						{
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								(*(fieldsToParse[i].numOfValidArgs))++;
-							}
-
-							*(char *)field = (char)atoi(stringOfValues);
-						}
-						else
-						{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								*(fieldsToParse[i].numOfValidArgs) = 0;
-							}
-
-							*(char *)field = 0;
-							isMissingParam = true;
-						}
+						PRINT_ERROR("%s; DWPAL_CHAR_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (strncmp(stringOfValues, "UNKNOWN", 8))
+							{
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									(*(fieldsToParse[i].numOfValidArgs))++;
+								}
+
+								*(char *)field = (char)atoi(stringOfValues);
+							}
+							else
+							{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									*(fieldsToParse[i].numOfValidArgs) = 0;
+								}
+
+								*(char *)field = 0;
+								isMissingParam = true;
+							}
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_UNSIGNED_CHAR_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_UNSIGNED_CHAR_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (strncmp(stringOfValues, "UNKNOWN", 8))
-						{
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								(*(fieldsToParse[i].numOfValidArgs))++;
-							}
-
-							*(unsigned char *)field = (unsigned char)atoi(stringOfValues);
-						}
-						else
-						{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								*(fieldsToParse[i].numOfValidArgs) = 0;
-							}
-
-							*(unsigned char *)field = 0;
-							isMissingParam = true;
-						}
+						PRINT_ERROR("%s; DWPAL_UNSIGNED_CHAR_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (strncmp(stringOfValues, "UNKNOWN", 8))
+							{
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									(*(fieldsToParse[i].numOfValidArgs))++;
+								}
+
+								*(unsigned char *)field = (unsigned char)atoi(stringOfValues);
+							}
+							else
+							{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									*(fieldsToParse[i].numOfValidArgs) = 0;
+								}
+
+								*(unsigned char *)field = 0;
+								isMissingParam = true;
+							}
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_SHORT_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_SHORT_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (strncmp(stringOfValues, "UNKNOWN", 8))
-						{
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								(*(fieldsToParse[i].numOfValidArgs))++;
-							}
-
-							*(short int *)field = (short int)atoi(stringOfValues);
-						}
-						else
-						{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								*(fieldsToParse[i].numOfValidArgs) = 0;
-							}
-
-							*(short int *)field = 0;
-							isMissingParam = true;
-						}
+						PRINT_ERROR("%s; DWPAL_SHORT_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (strncmp(stringOfValues, "UNKNOWN", 8))
+							{
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									(*(fieldsToParse[i].numOfValidArgs))++;
+								}
+
+								*(short int *)field = (short int)atoi(stringOfValues);
+							}
+							else
+							{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									*(fieldsToParse[i].numOfValidArgs) = 0;
+								}
+
+								*(short int *)field = 0;
+								isMissingParam = true;
+							}
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (strncmp(stringOfValues, "UNKNOWN", 8))
-						{
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								(*(fieldsToParse[i].numOfValidArgs))++;
-							}
-
-							*(int *)field = atoi(stringOfValues);
-						}
-						else
-						{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								*(fieldsToParse[i].numOfValidArgs) = 0;
-							}
-
-							*(int *)field = 0;
-							isMissingParam = true;
-						}
+						PRINT_ERROR("%s; DWPAL_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (strncmp(stringOfValues, "UNKNOWN", 8))
+							{
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									(*(fieldsToParse[i].numOfValidArgs))++;
+								}
+
+								*(int *)field = atoi(stringOfValues);
+							}
+							else
+							{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									*(fieldsToParse[i].numOfValidArgs) = 0;
+								}
+
+								*(int *)field = 0;
+								isMissingParam = true;
+							}
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_UNSIGNED_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_UNSIGNED_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (strncmp(stringOfValues, "UNKNOWN", 8))
-						{
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								(*(fieldsToParse[i].numOfValidArgs))++;
-							}
-
-							*(unsigned int *)field = strtoul(stringOfValues, NULL, 10);
-						}
-						else
-						{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								*(fieldsToParse[i].numOfValidArgs) = 0;
-							}
-
-							*(unsigned int *)field = 0;
-							isMissingParam = true;
-						}
+						PRINT_ERROR("%s; DWPAL_UNSIGNED_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (strncmp(stringOfValues, "UNKNOWN", 8))
+							{
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									(*(fieldsToParse[i].numOfValidArgs))++;
+								}
+
+								*(unsigned int *)field = strtoul(stringOfValues, NULL, 10);
+							}
+							else
+							{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									*(fieldsToParse[i].numOfValidArgs) = 0;
+								}
+
+								*(unsigned int *)field = 0;
+								isMissingParam = true;
+							}
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_LONG_LONG_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_LONG_LONG_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (strncmp(stringOfValues, "UNKNOWN", 8))
-						{
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								(*(fieldsToParse[i].numOfValidArgs))++;
-							}
-
-							*(long long int *)field = atoll(stringOfValues);
-						}
-						else
-						{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								*(fieldsToParse[i].numOfValidArgs) = 0;
-							}
-
-							*(long long int *)field = 0;
-							isMissingParam = true;
-						}
+						PRINT_ERROR("%s; DWPAL_LONG_LONG_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (strncmp(stringOfValues, "UNKNOWN", 8))
+							{
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									(*(fieldsToParse[i].numOfValidArgs))++;
+								}
+
+								*(long long int *)field = atoll(stringOfValues);
+							}
+							else
+							{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									*(fieldsToParse[i].numOfValidArgs) = 0;
+								}
+
+								*(long long int *)field = 0;
+								isMissingParam = true;
+							}
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_UNSIGNED_LONG_LONG_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_UNSIGNED_LONG_LONG_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (strncmp(stringOfValues, "UNKNOWN", 8))
-						{
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								(*(fieldsToParse[i].numOfValidArgs))++;
-							}
-
-							*(unsigned long long int *)field = strtoull(stringOfValues, NULL, 10);
-						}
-						else
-						{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
-							if (fieldsToParse[i].numOfValidArgs != NULL)
-							{
-								*(fieldsToParse[i].numOfValidArgs) = 0;
-							}
-
-							*(unsigned long long int *)field = 0;
-							isMissingParam = true;
-						}
+						PRINT_ERROR("%s; DWPAL_UNSIGNED_LONG_LONG_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (strncmp(stringOfValues, "UNKNOWN", 8))
+							{
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									(*(fieldsToParse[i].numOfValidArgs))++;
+								}
+
+								*(unsigned long long int *)field = strtoull(stringOfValues, NULL, 10);
+							}
+							else
+							{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
+								if (fieldsToParse[i].numOfValidArgs != NULL)
+								{
+									*(fieldsToParse[i].numOfValidArgs) = 0;
+								}
+
+								*(unsigned long long int *)field = 0;
+								isMissingParam = true;
+							}
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_INT_ARRAY_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_INT_ARRAY_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						//PRINT_DEBUG("%s; [1] fieldsToParse[%d].numOfValidArgs= %d, stringOfValues= '%s'\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs), stringOfValues);
-						if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_INT_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
-						{
-							PRINT_ERROR("%s; arrayValuesGet ERROR\n", __FUNCTION__);
-						}
-						//PRINT_DEBUG("%s; [2] fieldsToParse[%d].numOfValidArgs= %d\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs));
+						PRINT_ERROR("%s; DWPAL_INT_ARRAY_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							//PRINT_DEBUG("%s; [1] fieldsToParse[%d].numOfValidArgs= %d, stringOfValues= '%s'\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs), stringOfValues);
+							if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_INT_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
+							{
+								PRINT_ERROR("%s; arrayValuesGet ERROR\n", __FUNCTION__);
+							}
+							//PRINT_DEBUG("%s; [2] fieldsToParse[%d].numOfValidArgs= %d\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs));
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_INT_HEX_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_INT_HEX_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (fieldsToParse[i].numOfValidArgs != NULL)
-						{
-							(*(fieldsToParse[i].numOfValidArgs))++;
-						}
-
-						*((int *)field) = strtol(stringOfValues, NULL, 16);
+						PRINT_ERROR("%s; DWPAL_INT_HEX_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (fieldsToParse[i].numOfValidArgs != NULL)
+							{
+								(*(fieldsToParse[i].numOfValidArgs))++;
+							}
+
+							*((int *)field) = strtol(stringOfValues, NULL, 16);
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_INT_HEX_ARRAY_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_INT_HEX_ARRAY_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_INT_HEX_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
-						{
-							PRINT_ERROR("%s; arrayValuesGet (stringToSearch= '%s') ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].stringToSearch);
-							ret = DWPAL_FAILURE; /* array of string detected, but getting its arguments failed ==> Abort! */
-						}
+						PRINT_ERROR("%s; DWPAL_INT_HEX_ARRAY_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_INT_HEX_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
+							{
+								PRINT_ERROR("%s; arrayValuesGet (stringToSearch= '%s') ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].stringToSearch);
+								ret = DWPAL_FAILURE; /* array of string detected, but getting its arguments failed ==> Abort! */
+							}
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
 				case DWPAL_BOOL_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
+						PRINT_ERROR("%s; DWPAL_BOOL_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
-					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
-					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					if (field == NULL)
 					{
-						if (fieldsToParse[i].numOfValidArgs != NULL)
-						{
-							(*(fieldsToParse[i].numOfValidArgs))++;
-						}
-
-						*((bool *)field) = atoi(stringOfValues);
+						PRINT_ERROR("%s; DWPAL_BOOL_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
-						isMissingParam = true;
+						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+						{
+							if (fieldsToParse[i].numOfValidArgs != NULL)
+							{
+								(*(fieldsToParse[i].numOfValidArgs))++;
+							}
+
+							*((bool *)field) = atoi(stringOfValues);
+						}
+						else
+						{
+							isMissingParam = true;
+						}
 					}
 					break;
 
