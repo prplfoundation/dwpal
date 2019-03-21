@@ -65,17 +65,12 @@ typedef struct
 
 		struct
 		{
-			struct nl_sock *nlSocket;
-			int    fd, nl80211_id;
-			DWPAL_nlEventCallback nlEventCallback;
+			struct nl_sock *nlSocketEvent, *nlSocketCmdGet;
+			int    fd, fdCmdGet, nl80211_id;
+			DWPAL_nlEventCallback nlEventCallback, nlCmdGetCallback;
 		} driver;
 	} interface;
 } DWPAL_Context;
-
-
-extern size_t *getOutLen;
-extern unsigned char *getOutData;
-extern int getVendorSubcmd;
 
 
 /* Local static functions */
@@ -88,7 +83,7 @@ static int no_seq_check(struct nl_msg *msg, void *arg)
 }
 
 
-static int command_get_ended_msg_send(void)
+static DWPAL_Ret command_get_ended_msg_send(void)
 {
     int                fd = -1, byte;
 	struct sockaddr_un un;
@@ -151,72 +146,147 @@ static int command_get_ended_msg_send(void)
 }
 
 
-static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
+static DWPAL_Ret nlInternalNlCallback(DWPAL_NlEventType nlEventType, struct nl_msg *msg, void *arg)
 {
-	DWPAL_Context *localContext = (DWPAL_Context *)(arg);
+	DWPAL_Context     *localContext = (DWPAL_Context *)(arg);
+	struct nlattr     *attr;
+	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+	struct nlattr     *tb[NL80211_ATTR_MAX + 1];
+	unsigned char     *data;
+	int               len, vendor_subcmd = -1;
+	char              ifname[DWPAL_VAP_NAME_STRING_LENGTH] = "\0";
 
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	PRINT_DEBUG("%s Entry; nlEventType= %d (DWPAL_NL_EVENT_GET=0, DWPAL_NL_CMD_GET=1)\n", __FUNCTION__, nlEventType);
 
-	if (localContext->interface.driver.nlEventCallback != NULL)
+	if ( (nlEventType == DWPAL_NL_EVENT_GET) && (localContext->interface.driver.nlEventCallback == NULL) )
 	{
-		struct nlattr *attr;
-		struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
-		struct nlattr *tb[NL80211_ATTR_MAX + 1];
-		unsigned char *data;
-		int vendor_subcmd = -1;
-		char ifname[DWPAL_VAP_NAME_STRING_LENGTH] = "\0";
-		int len;
+		PRINT_DEBUG("%s; 'DWPAL_NL_EVENT_GET' and nlEventCallback=NULL ==> exit\n", __FUNCTION__);
+		return (int)DWPAL_SUCCESS;
+	}
 
-		nla_parse(tb,
-		          NL80211_ATTR_MAX,
-				  genlmsg_attrdata(gnlh, 0),
-				  genlmsg_attrlen(gnlh, 0),
-				  NULL);
+	nla_parse(tb,
+			  NL80211_ATTR_MAX,
+			  genlmsg_attrdata(gnlh, 0),
+			  genlmsg_attrlen(gnlh, 0),
+			  NULL);
 
-		attr = nla_find(genlmsg_attrdata(gnlh, 0),
-		                genlmsg_attrlen(gnlh, 0),
-		                NL80211_ATTR_VENDOR_DATA);
+	attr = nla_find(genlmsg_attrdata(gnlh, 0),
+					genlmsg_attrlen(gnlh, 0),
+					NL80211_ATTR_VENDOR_DATA);
 
-		if (!attr)
+	if (!attr)
+	{
+		PRINT_ERROR("%s; vendor data attribute missing ==> Abort!\n", __FUNCTION__);
+		return (int)DWPAL_FAILURE;
+	}
+
+	data = (unsigned char *)nla_data(attr);
+	len = nla_len(attr);
+
+	if ( (gnlh->cmd == NL80211_CMD_VENDOR) && (tb[NL80211_ATTR_VENDOR_SUBCMD] != NULL) )
+	{
+		vendor_subcmd = nla_get_u32(tb[NL80211_ATTR_VENDOR_SUBCMD]);
+	}
+
+	if (tb[NL80211_ATTR_IFINDEX] != NULL)
+	{
+		if_indextoname(nla_get_u32(tb[NL80211_ATTR_IFINDEX]), ifname);
+	}
+
+	if (nlEventType == DWPAL_NL_CMD_GET)
+	{
+		/* Call the NL 'get command' callback function */
+		localContext->interface.driver.nlCmdGetCallback(ifname, gnlh->cmd, vendor_subcmd, (size_t)len, data);
+
+		PRINT_DEBUG("%s; 'get command' received ==> notify dwpal_ext\n", __FUNCTION__);
+		if (command_get_ended_msg_send() == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; vendor data attribute missing ==> Abort!\n", __FUNCTION__);
-			return (int)DWPAL_FAILURE;
+			PRINT_ERROR("%s; command_get_ended_msg_send failed ==> cont...\n", __FUNCTION__);
 		}
-
-		data = (unsigned char *)nla_data(attr);
-		len = nla_len(attr);
-
-		if ( (gnlh->cmd == NL80211_CMD_VENDOR) && (tb[NL80211_ATTR_VENDOR_SUBCMD] != NULL) )
-		{
-			vendor_subcmd = nla_get_u32(tb[NL80211_ATTR_VENDOR_SUBCMD]);
-		}
-
-		if (tb[NL80211_ATTR_IFINDEX] != NULL)
-		{
-			if_indextoname(nla_get_u32(tb[NL80211_ATTR_IFINDEX]), ifname);
-		}
-
-		if ( (getOutLen != NULL) && (getOutData != NULL) && (getVendorSubcmd != -1) )
-		{
-			PRINT_DEBUG("%s; vendor_subcmd= %d, getVendorSubcmd= %d\n", __FUNCTION__, vendor_subcmd, getVendorSubcmd);
-			if (vendor_subcmd == getVendorSubcmd)
-			{
-				PRINT_DEBUG("%s; vendor_subcmd (%d) found! ==> notify dwpal_ext\n", __FUNCTION__, vendor_subcmd);
-
-				memcpy_s((void *)getOutData, (rsize_t)len, (void *)data, (rsize_t)len);
-				*getOutLen = (size_t)len;
-
-				command_get_ended_msg_send();
-
-				return (int)DWPAL_SUCCESS;
-			}
-		}
-
+	}
+	else if (nlEventType == DWPAL_NL_EVENT_GET)
+	{
 		/* Call the NL callback function */
 		localContext->interface.driver.nlEventCallback(ifname, gnlh->cmd, vendor_subcmd, (size_t)len, data);
 	}
+	else
+	{
+		PRINT_ERROR("%s; invalid nlEventType (%d) ==> Abort!\n", __FUNCTION__, nlEventType);
+		return DWPAL_FAILURE;
+	}
 
 	return (int)DWPAL_SUCCESS;
+}
+
+
+static int nlInternalCmdGetCallback(struct nl_msg *msg, void *arg)
+{
+	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+
+	if (nlInternalNlCallback(DWPAL_NL_CMD_GET, msg, arg) == DWPAL_FAILURE)
+	{
+		PRINT_ERROR("%s; nlInternalNlCallback ERROR ==> Abort!\n", __FUNCTION__);
+		return (int)DWPAL_FAILURE;
+	}
+
+	return (int)DWPAL_SUCCESS;
+}
+
+
+static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
+{
+	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+
+	if (nlInternalNlCallback(DWPAL_NL_EVENT_GET, msg, arg) == DWPAL_FAILURE)
+	{
+		PRINT_ERROR("%s; nlInternalNlCallback ERROR ==> Abort!\n", __FUNCTION__);
+		return (int)DWPAL_FAILURE;
+	}
+
+	return (int)DWPAL_SUCCESS;
+}
+
+
+static DWPAL_Ret nlSocketCreate(struct nl_sock **nlSocket, int *fd)
+{
+	int res = 1;
+
+	*nlSocket = nl_socket_alloc();
+	if (*nlSocket == NULL)
+	{
+		PRINT_ERROR("%s; nl_socket_alloc ERROR ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
+	/* Connect to generic netlink socket on kernel side */
+	if (genl_connect(*nlSocket) < 0)
+	{
+		PRINT_ERROR("%s; genl_connect ERROR ==> Abort!\n", __FUNCTION__);
+		nl_socket_free(*nlSocket);
+		return DWPAL_FAILURE;
+	}
+
+	if (nl_socket_set_buffer_size(*nlSocket, 8192, 8192) != 0)
+	{
+		PRINT_ERROR("%s; nl_socket_set_buffer_size ERROR ==> Abort!\n", __FUNCTION__);
+		nl_socket_free(*nlSocket);
+		return DWPAL_FAILURE;
+	}
+
+	*fd = nl_socket_get_fd(*nlSocket);
+	if (*fd == -1)
+	{
+		PRINT_ERROR("%s; nl_socket_get_fd ERROR ==> Abort!\n", __FUNCTION__);
+		nl_socket_free(*nlSocket);
+		return DWPAL_FAILURE;
+	}
+	PRINT_DEBUG("%s; driver.fd= %d\n", __FUNCTION__, *fd);
+
+	/* manipulate options for the socket referred to by the file descriptor - driver.fd */
+	setsockopt(*fd, SOL_NETLINK /*option level argument*/,
+		   NETLINK_EXT_ACK, &res, sizeof(res));
+
+	return DWPAL_SUCCESS;
 }
 
 
@@ -539,14 +609,22 @@ static bool columnOfParamsToRowConvert(char *msg, size_t msgLen, char *endFieldN
 
 /* Low Level APIs */
 
-DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_commands nl80211Command, CmdIdType cmdIdType, enum ltq_nl80211_vendor_subcmds subCommand, unsigned char *vendorData, size_t vendorDataSize)
+DWPAL_Ret dwpal_driver_nl_cmd_send(void *context,
+                                   DWPAL_NlEventType nlEventType,
+								   char *ifname,
+								   enum nl80211_commands nl80211Command,
+								   CmdIdType cmdIdType,
+								   enum ltq_nl80211_vendor_subcmds subCommand,
+								   unsigned char *vendorData,
+								   size_t vendorDataSize)
 {
-	int i, res;
-	struct nl_msg *msg;
-	DWPAL_Context *localContext = (DWPAL_Context *)(context);
+	int              i, res;
+	struct nl_msg    *msg;
+	DWPAL_Context    *localContext = (DWPAL_Context *)(context);
 	signed long long devidx = 0;
+	struct nl_sock   *nlSocket = NULL;
 
-	PRINT_DEBUG("%s Entry!\n", __FUNCTION__);
+	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
 
 	if (nl80211Command != NL80211_CMD_VENDOR /*0x67*/)
 	{
@@ -559,13 +637,27 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 		PRINT_DEBUG("%s; vendorData[%d]= 0x%x\n", __FUNCTION__, i, vendorData[i]);
 	}
 
+	if (nlEventType == DWPAL_NL_EVENT_GET)
+	{
+		nlSocket = localContext->interface.driver.nlSocketEvent;
+	}
+	else if (nlEventType == DWPAL_NL_CMD_GET)
+	{
+		nlSocket = localContext->interface.driver.nlSocketCmdGet;
+	}
+	else
+	{
+		PRINT_ERROR("%s; invalid nlEventType (%d) ==> Abort!\n", __FUNCTION__, nlEventType);
+		return DWPAL_FAILURE;
+	}
+
 	if (localContext == NULL)
 	{
 		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	if (localContext->interface.driver.nlSocket == NULL)
+	if (nlSocket == NULL)
 	{
 		PRINT_ERROR("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
@@ -653,7 +745,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 	}
 
 	/* will trigger nlEventCallback() function call */
-	res = nl_send_auto(localContext->interface.driver.nlSocket, msg);  // can use nl_send_auto_complete(localContext->interface.driver.nlSocket, msg) instead
+	res = nl_send_auto(nlSocket, msg);  // can use nl_send_auto_complete(nlSocket, msg) instead
 	if (res < 0)
 	{
 		PRINT_ERROR("%s; nl_send_auto returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
@@ -667,13 +759,13 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_com
 }
 
 
-DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_nlEventCallback nlEventCallback)
+DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_NlEventType nlEventType, DWPAL_nlEventCallback nlEventCallback)
 {
-	int res;
-	struct nl_cb *cb;
+	int           res;
+	struct nl_cb  *cb;
 	DWPAL_Context *localContext = (DWPAL_Context *)(context);
 
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	PRINT_DEBUG("%s Entry; nlEventType= %d (DWPAL_NL_EVENT_GET=0, DWPAL_NL_CMD_GET=1)\n", __FUNCTION__, nlEventType);
 
 	if (localContext == NULL)
 	{
@@ -681,14 +773,12 @@ DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_nlEventCallback nlEventCa
 		return DWPAL_FAILURE;
 	}
 
-	if (localContext->interface.driver.nlSocket == NULL)
+	if ( ( (nlEventType == DWPAL_NL_EVENT_GET) && (localContext->interface.driver.nlSocketEvent == NULL) ) ||
+	     ( (nlEventType == DWPAL_NL_CMD_GET) && (localContext->interface.driver.nlSocketCmdGet == NULL) ) )
 	{
 		PRINT_ERROR("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
-
-	/* nlEventCallback can be NULL; in that case, the D-WPAL client's callback function won't be called */
-	localContext->interface.driver.nlEventCallback = nlEventCallback;
 
 	/* Connect the nl socket to its message callback function */
 	cb = nl_cb_alloc(NL_CB_DEFAULT);
@@ -700,11 +790,32 @@ DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_nlEventCallback nlEventCa
 	}
 
 	nl_cb_set(cb, NL_CB_SEQ_CHECK, NL_CB_CUSTOM, no_seq_check, NULL);
-	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, nlInternalEventCallback, context);
+	if (nlEventType == DWPAL_NL_EVENT_GET)
+	{
+		/* nlEventCallback can be NULL; in that case, the D-WPAL client's callback function won't be called */
+		localContext->interface.driver.nlEventCallback = nlEventCallback;
 
+		nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, nlInternalEventCallback, context);
 
-	/* will trigger nlEventCallback() function call */
-	res = nl_recvmsgs(localContext->interface.driver.nlSocket, cb);
+		/* will trigger nlEventCallback() function call */
+		res = nl_recvmsgs(localContext->interface.driver.nlSocketEvent, cb);
+	}
+	else if (nlEventType == DWPAL_NL_CMD_GET)
+	{
+		/* nlEventCallback can be NULL; in that case, the D-WPAL client's callback function won't be called */
+		localContext->interface.driver.nlCmdGetCallback = nlEventCallback;
+
+		nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, nlInternalCmdGetCallback, context);
+
+		/* will trigger nlEventCallback() function call */
+		res = nl_recvmsgs(localContext->interface.driver.nlSocketCmdGet, cb);
+	}
+	else
+	{
+		PRINT_ERROR("%s; invalid nlEventType (%d) ==> Abort!\n", __FUNCTION__, nlEventType);
+		return DWPAL_FAILURE;
+	}
+
 	if (res < 0)
 	{
 		PRINT_ERROR("%s; nl_recvmsgs_default returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
@@ -715,19 +826,25 @@ DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_nlEventCallback nlEventCa
 }
 
 
-DWPAL_Ret dwpal_driver_nl_fd_get(void *context, int *fd /*OUT*/)
+DWPAL_Ret dwpal_driver_nl_fd_get(void *context, int *fd /*OUT*/, int *fdCmdGet /*OUT*/)
 {
-	if ( (context == NULL) || (fd == NULL) )
+	if ( (context == NULL) || (fd == NULL) || (fdCmdGet == NULL) )
 	{
-		//PRINT_ERROR("%s; context and/or fd is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; context and/or fd, fdCmdGet is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	*fd = ((DWPAL_Context *)context)->interface.driver.fd;
-
 	if (*fd == (-1))
 	{
 		PRINT_ERROR("%s; fd value is (-1) ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
+	*fdCmdGet = ((DWPAL_Context *)context)->interface.driver.fdCmdGet;
+	if (*fdCmdGet == (-1))
+	{
+		PRINT_ERROR("%s; fdCmdGet value is (-1) ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -752,18 +869,22 @@ DWPAL_Ret dwpal_driver_nl_detach(void **context /*IN/OUT*/)
 		return DWPAL_FAILURE;
 	}
 
-	if (localContext->interface.driver.nlSocket == NULL)
+	if (localContext->interface.driver.nlSocketEvent == NULL)
 	{
-		PRINT_ERROR("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; nlSocketEvent is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	/* Note: calling nl_close() is NOT needed - The socket is closed automatically when using nl_socket_free() */
-	nl_socket_free(localContext->interface.driver.nlSocket);
+	nl_socket_free(localContext->interface.driver.nlSocketEvent);
+	nl_socket_free(localContext->interface.driver.nlSocketCmdGet);
 
-	localContext->interface.driver.nlSocket = NULL;
+	localContext->interface.driver.nlSocketEvent = NULL;
+	localContext->interface.driver.nlSocketCmdGet = NULL;
 	localContext->interface.driver.fd = -1;
+	localContext->interface.driver.fdCmdGet = -1;
 	localContext->interface.driver.nlEventCallback = NULL;
+	localContext->interface.driver.nlCmdGetCallback = NULL;
 
 	*context = NULL;
 
@@ -773,7 +894,7 @@ DWPAL_Ret dwpal_driver_nl_detach(void **context /*IN/OUT*/)
 
 DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 {
-	int res = 1, mcid;
+	int           mcid;
 	DWPAL_Context *localContext;
 
 	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
@@ -793,76 +914,53 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 
 	localContext = (DWPAL_Context *)(*context);
 
-	localContext->interface.driver.nlSocket = nl_socket_alloc();
-	if (localContext->interface.driver.nlSocket == NULL)
+	/* Create the NL socket for the events (unsolicited events) */
+	if (nlSocketCreate(&localContext->interface.driver.nlSocketEvent, &localContext->interface.driver.fd) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; nl_socket_alloc ERROR ==> Abort!\n", __FUNCTION__);
+		PRINT_ERROR("%s; nlSocketCreate failed ==> Abort!\n", __FUNCTION__);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
 	}
 
-	/* Connect to generic netlink socket on kernel side */
-	if (genl_connect(localContext->interface.driver.nlSocket) < 0)
+	mcid = genl_ctrl_resolve_grp(localContext->interface.driver.nlSocketEvent, "nl80211", "vendor");
+
+	PRINT_DEBUG("%s; mcid= %d\n", __FUNCTION__, mcid);
+
+	if (nl_socket_add_membership(localContext->interface.driver.nlSocketEvent, mcid) < 0)
 	{
-		PRINT_ERROR("%s; genl_connect ERROR ==> Abort!\n", __FUNCTION__);
-		nl_socket_free(localContext->interface.driver.nlSocket);
+		PRINT_DEBUG("%s; nl_socket_add_membership ERROR ==> Abort!\n", __FUNCTION__);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
 	}
 
-	if (nl_socket_set_buffer_size(localContext->interface.driver.nlSocket, 8192, 8192) != 0)
+	/* Create the NL socket for the 'get commands' (solicited events) */
+	if (nlSocketCreate(&localContext->interface.driver.nlSocketCmdGet, &localContext->interface.driver.fdCmdGet) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; nl_socket_set_buffer_size ERROR ==> Abort!\n", __FUNCTION__);
-		nl_socket_free(localContext->interface.driver.nlSocket);
+		PRINT_ERROR("%s; nlSocketCreate failed ==> Abort!\n", __FUNCTION__);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
 	}
 
-	//nl_socket_disable_seq_check(localContext->interface.driver.nlSocket);
-	//nl_socket_disable_auto_ack(localContext->interface.driver.nlSocket);
-	//nl_socket_enable_msg_peek(localContext->interface.driver.nlSocket);
-
-	localContext->interface.driver.fd = nl_socket_get_fd(localContext->interface.driver.nlSocket);
-	if (localContext->interface.driver.fd == -1)
-	{
-		PRINT_ERROR("%s; nl_socket_get_fd ERROR ==> Abort!\n", __FUNCTION__);
-		nl_socket_free(localContext->interface.driver.nlSocket);
-		free(*context);
-		*context = NULL;
-		return DWPAL_FAILURE;
-	}
-	PRINT_DEBUG("%s; driver.fd= %d\n", __FUNCTION__, localContext->interface.driver.fd);
-
-	/* manipulate options for the socket referred to by the file descriptor - driver.fd */
-	setsockopt(localContext->interface.driver.fd, SOL_NETLINK /*option level argument*/,
-		   NETLINK_EXT_ACK, &res, sizeof(res));
-
-	/* Ask kernel to resolve nl80211_id name to nl80211_id id */
-	localContext->interface.driver.nl80211_id = genl_ctrl_resolve(localContext->interface.driver.nlSocket, "nl80211");
+	/* Ask kernel to resolve nl80211_id name to nl80211_id id; nl80211_id is being used only for command send */
+	localContext->interface.driver.nl80211_id = genl_ctrl_resolve(localContext->interface.driver.nlSocketCmdGet, "nl80211");
 	if (localContext->interface.driver.nl80211_id < 0)
 	{
 		PRINT_ERROR("%s; genl_ctrl_resolve ERROR ==> Abort!\n", __FUNCTION__);
-		nl_socket_free(localContext->interface.driver.nlSocket);
+		nl_socket_free(localContext->interface.driver.nlSocketEvent);
+		nl_socket_free(localContext->interface.driver.nlSocketCmdGet);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
 	}
 	PRINT_DEBUG("%s; driver.nl80211_id= %d\n", __FUNCTION__, localContext->interface.driver.nl80211_id);
 
-	mcid = genl_ctrl_resolve_grp(localContext->interface.driver.nlSocket, "nl80211", "vendor");
-
-	PRINT_DEBUG("%s; mcid= %d\n", __FUNCTION__, mcid);
-
-	if (nl_socket_add_membership(localContext->interface.driver.nlSocket, mcid) < 0)
-	{
-		PRINT_DEBUG("%s; nl_socket_add_membership ERROR ==> Abort!\n", __FUNCTION__);
-	}
-
-	PRINT_DEBUG("%s; driver.nlSocket= 0x%x, driver.nlEventCallback= 0x%x, driver.nl80211_id= %d\n",
-	       __FUNCTION__, (unsigned int)localContext->interface.driver.nlSocket, (unsigned int)localContext->interface.driver.nlEventCallback, localContext->interface.driver.nl80211_id);
+	PRINT_DEBUG("%s; driver.nlSocketEvent= 0x%x, fd= %d, driver.nlEventCallback= 0x%x, driver.nl80211_id= %d; nlSocketCmdGet= 0x%x, fdCmdGet= %d\n",
+	       __FUNCTION__, (unsigned int)localContext->interface.driver.nlSocketEvent, localContext->interface.driver.fd,
+		   (unsigned int)localContext->interface.driver.nlEventCallback, localContext->interface.driver.nl80211_id,
+		   (unsigned int)localContext->interface.driver.nlSocketCmdGet, localContext->interface.driver.fdCmdGet);
 
 	return DWPAL_SUCCESS;
 }
@@ -956,9 +1054,19 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					//PRINT_DEBUG("%s; DWPAL_INT_PARAM/DWPAL_INT_HEX_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
+				case DWPAL_UNSIGNED_INT_PARAM:
+					sizeOfStruct += sizeof(unsigned int);
+					//PRINT_DEBUG("%s; DWPAL_UNSIGNED_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					break;
+
 				case DWPAL_LONG_LONG_INT_PARAM:
 					sizeOfStruct += sizeof(long long int);
 					//PRINT_DEBUG("%s; DWPAL_LONG_LONG_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					break;
+
+				case DWPAL_UNSIGNED_LONG_LONG_INT_PARAM:
+					sizeOfStruct += sizeof(unsigned long long int);
+					//PRINT_DEBUG("%s; DWPAL_UNSIGNED_LONG_LONG_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_INT_ARRAY_PARAM:
@@ -998,6 +1106,10 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 		{
 			PRINT_ERROR("%s; malloc endFieldName failed ==> Abort!\n", __FUNCTION__);
 			ret = DWPAL_FAILURE;
+		}
+		else
+		{
+			memset((void *)endFieldName, (int)NULL, sizeof(*endFieldName) * numOfNameArrayArgs);
 		}
 
 		i = idx = 0;
@@ -1074,9 +1186,16 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 		i = 0;
 		while ( (fieldsToParse[i].parsingType != DWPAL_NUM_OF_PARSING_TYPES) && (ret == DWPAL_SUCCESS) )
 		{
-			/* set the output parameter - move it to the next array index (needed when parsing many lines) */
-			field = (void *)((unsigned int)fieldsToParse[i].field + lineIdx * sizeOfStruct);
-			//PRINT_DEBUG("%s; lineIdx= %d, sizeOfStruct= %d, field= 0x%x\n", __FUNCTION__, lineIdx, sizeOfStruct, (unsigned int)field);
+			if (fieldsToParse[i].field == NULL)
+			{
+				field = NULL;
+			}
+			else
+			{
+				/* set the output parameter - move it to the next array index (needed when parsing many lines) */
+				field = (void *)((unsigned int)fieldsToParse[i].field + lineIdx * sizeOfStruct);
+				//PRINT_DEBUG("%s; lineIdx= %d, sizeOfStruct= %d, field= 0x%x\n", __FUNCTION__, lineIdx, sizeOfStruct, (unsigned int)field);
+			}
 
 			switch (fieldsToParse[i].parsingType)
 			{
@@ -1318,6 +1437,42 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					}
 					break;
 
+				case DWPAL_UNSIGNED_INT_PARAM:
+					if (isEndFieldNameAllocated == false)
+					{
+						ret = DWPAL_FAILURE;
+						break;
+					}
+
+					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					{
+						if (strncmp(stringOfValues, "UNKNOWN", 8))
+						{
+							if (fieldsToParse[i].numOfValidArgs != NULL)
+							{
+								(*(fieldsToParse[i].numOfValidArgs))++;
+							}
+
+							*(unsigned int *)field = strtoul(stringOfValues, NULL, 10);
+						}
+						else
+						{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
+							if (fieldsToParse[i].numOfValidArgs != NULL)
+							{
+								*(fieldsToParse[i].numOfValidArgs) = 0;
+							}
+
+							*(unsigned int *)field = 0;
+							isMissingParam = true;
+						}
+					}
+					else
+					{
+						isMissingParam = true;
+					}
+					break;
+
 				case DWPAL_LONG_LONG_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
@@ -1345,6 +1500,42 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 							}
 
 							*(long long int *)field = 0;
+							isMissingParam = true;
+						}
+					}
+					else
+					{
+						isMissingParam = true;
+					}
+					break;
+
+				case DWPAL_UNSIGNED_LONG_LONG_INT_PARAM:
+					if (isEndFieldNameAllocated == false)
+					{
+						ret = DWPAL_FAILURE;
+						break;
+					}
+
+					memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
+					if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
+					{
+						if (strncmp(stringOfValues, "UNKNOWN", 8))
+						{
+							if (fieldsToParse[i].numOfValidArgs != NULL)
+							{
+								(*(fieldsToParse[i].numOfValidArgs))++;
+							}
+
+							*(unsigned long long int *)field = strtoull(stringOfValues, NULL, 10);
+						}
+						else
+						{  /* In case that the return value is "UNKNOWN", set isValid to 'false' and value to '0' */
+							if (fieldsToParse[i].numOfValidArgs != NULL)
+							{
+								*(fieldsToParse[i].numOfValidArgs) = 0;
+							}
+
+							*(unsigned long long int *)field = 0;
 							isMissingParam = true;
 						}
 					}
@@ -1546,10 +1737,23 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 						}
 						break;
 
+					case DWPAL_UNSIGNED_INT_PARAM:
+						//PRINT_DEBUG("%s; fieldsToCmdParse[%d].field= %u\n", __FUNCTION__, i, *((unsigned int *)fieldsToCmdParse[i].field));
+						if (fieldsToCmdParse[i].preParamString == NULL)
+						{
+							snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s %u", cmd, *((unsigned int *)fieldsToCmdParse[i].field));
+						}
+						else
+						{
+							snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s %s%u", cmd, fieldsToCmdParse[i].preParamString, *((unsigned int *)fieldsToCmdParse[i].field));
+						}
+						break;
+
 					case DWPAL_CHAR_PARAM:
 					case DWPAL_UNSIGNED_CHAR_PARAM:
 					case DWPAL_SHORT_INT_PARAM:
 					case DWPAL_LONG_LONG_INT_PARAM:
+					case DWPAL_UNSIGNED_LONG_LONG_INT_PARAM:
 					case DWPAL_INT_ARRAY_PARAM:
 					case DWPAL_INT_HEX_ARRAY_PARAM:
 						break;

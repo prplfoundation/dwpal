@@ -43,16 +43,15 @@ typedef struct
 {
 	char                        interfaceType[DWPAL_INTERFACE_TYPE_STRING_LENGTH];
 	char                        VAPName[DWPAL_VAP_NAME_STRING_LENGTH];
-	int                         fd;
+	int                         fd, fdCmdGet;
 	bool                        isConnectionEstablishNeeded;
 	DwpalExtHostapEventCallback hostapEventCallback;
-	DwpalExtNlEventCallback     nlEventCallback;
+	DwpalExtNlEventCallback     nlEventCallback, nlCmdGetCallback;
 } DwpalService;
 
 
 size_t        *getOutLen = NULL;
 unsigned char *getOutData = NULL;
-int           getVendorSubcmd = -1;
 
 static DwpalService *dwpalService[NUM_OF_SUPPORTED_VAPS + 1] = { [0 ... NUM_OF_SUPPORTED_VAPS ] = NULL };  /* add 1 place for NL */
 static void *context[sizeof(dwpalService) / sizeof(DwpalService *)]= { [0 ... (sizeof(dwpalService) / sizeof(DwpalService *) - 1) ] = NULL };;
@@ -242,7 +241,7 @@ static void *listenerThreadStart(void *temp)
 			}
 			else if (!strncmp(dwpalService[i]->interfaceType, "Driver", 7))
 			{
-				if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i]->fd) == DWPAL_FAILURE)
+				if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i]->fd, &dwpalService[i]->fdCmdGet) == DWPAL_FAILURE)
 				{
 					/*PRINT_ERROR("%s; dwpal_driver_nl_fd_get returned error ==> cont. (VAPName= '%s')\n",
 					       __FUNCTION__, dwpalService[i].VAPName);*/
@@ -253,6 +252,12 @@ static void *listenerThreadStart(void *temp)
 				{
 					FD_SET(dwpalService[i]->fd, &rfds);
 					highestValFD = (dwpalService[i]->fd > highestValFD)? dwpalService[i]->fd : highestValFD;  /* find the highest value fd */
+				}
+
+				if (dwpalService[i]->fdCmdGet > 0)
+				{
+					FD_SET(dwpalService[i]->fdCmdGet, &rfds);
+					highestValFD = (dwpalService[i]->fdCmdGet > highestValFD)? dwpalService[i]->fdCmdGet : highestValFD;  /* find the highest value fd */
 				}
 			}
 		}
@@ -329,26 +334,28 @@ static void *listenerThreadStart(void *temp)
 			}
 			else if (!strncmp(dwpalService[i]->interfaceType, "Driver", 7))
 			{
-				if (dwpalService[i]->fd > 0)
+				if ( (dwpalService[i]->fd > 0) && (FD_ISSET(dwpalService[i]->fd, &rfds)) )
 				{
-					if (FD_ISSET(dwpalService[i]->fd, &rfds))
+					PRINT_DEBUG("%s; event received; interfaceType= '%s', VAPName= '%s'\n",
+						   __FUNCTION__, dwpalService[i]->interfaceType, dwpalService[i]->VAPName);
+
+					isTimerExpired = false;
+
+					if (dwpal_driver_nl_msg_get(context[i], DWPAL_NL_EVENT_GET, dwpalService[i]->nlEventCallback) == DWPAL_FAILURE)
 					{
-						/*PRINT_DEBUG("%s; event received; interfaceType= '%s', VAPName= '%s'\n",
-						       __FUNCTION__, dwpalService[i]->interfaceType, dwpalService[i]->VAPName);*/
+						PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR\n", __FUNCTION__);
+					}
+				}
+				else if ( (dwpalService[i]->fdCmdGet > 0) && (FD_ISSET(dwpalService[i]->fdCmdGet, &rfds)) )
+				{
+					PRINT_DEBUG("%s; 'get command' event received; interfaceType= '%s', VAPName= '%s'\n",
+						   __FUNCTION__, dwpalService[i]->interfaceType, dwpalService[i]->VAPName);
 
-						isTimerExpired = false;
+					isTimerExpired = false;
 
-						if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i]->fd) == DWPAL_FAILURE)
-						{
-							/*PRINT_ERROR("%s; dwpal_driver_nl_fd_get returned error ==> cont. (VAPName= '%s')\n",
-								   __FUNCTION__, dwpalService[i]->VAPName);*/
-							continue;
-						}
-
-						if (dwpal_driver_nl_msg_get(context[i], dwpalService[i]->nlEventCallback) == DWPAL_FAILURE)
-						{
-							PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR\n", __FUNCTION__);
-						}
+					if (dwpal_driver_nl_msg_get(context[i], DWPAL_NL_CMD_GET, dwpalService[i]->nlCmdGetCallback) == DWPAL_FAILURE)
+					{
+						PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR\n", __FUNCTION__);
 					}
 				}
 			}
@@ -470,7 +477,7 @@ static DWPAL_Ret listenerThreadSet(DwpalThreadOperation threadOperation)
 }
 
 
-static DWPAL_Ret dwpal_command_get_ended_socket_wait(char *socketName, bool *isReceived)
+static DWPAL_Ret dwpal_command_get_ended_socket_wait(bool *isReceived)
 {
 	int    res;
 	fd_set rfds;
@@ -508,19 +515,7 @@ static DWPAL_Ret dwpal_command_get_ended_socket_wait(char *socketName, bool *isR
 		}
 
 		PRINT_DEBUG("%s; the right event indication was NOT received ==> break\n", __FUNCTION__);
-		*isReceived = true;
 		break;
-	}
-
-	if (dwpal_command_get_ended != (-1))
-	{
-		if (close(dwpal_command_get_ended) == (-1))
-		{
-			PRINT_ERROR("%s; close() fail; dwpal_command_get_ended= %d; errno= %d ('%s')\n", __FUNCTION__, dwpal_command_get_ended, errno, strerror(errno));
-		}
-
-		unlink(socketName);
-		dwpal_command_get_ended = (-1);
 	}
 
 	return DWPAL_SUCCESS;
@@ -570,7 +565,6 @@ static int fdDaemonSet(char *socketName, int *fd /* output param */)
 			PRINT_ERROR("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
 		}
 
-		unlink(socketName);
 		return DWPAL_FAILURE;
     }
 
@@ -583,18 +577,20 @@ static int fdDaemonSet(char *socketName, int *fd /* output param */)
 			PRINT_ERROR("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
 		}
 
-		unlink(socketName);
 		return DWPAL_FAILURE;
 	}
-
-	PRINT_DEBUG("%s; fd_daemon (socketName='%s') = %d\n", __FUNCTION__, socketName, *fd);
 
 	return DWPAL_SUCCESS;
 }
 
 
-static DWPAL_Ret dwpal_command_get_ended_socket_create(char *socketName)
+static DWPAL_Ret dwpal_command_get_ended_socket_create(void)
 {
+	pid_t pid = getpid();
+	char  socketName[SOCKET_NAME_LENGTH] = "\0";
+
+	snprintf(socketName, sizeof(socketName) - 1, "%s_%d", COMMAND_ENDED_SOCKET, pid);
+
 	if (dwpal_command_get_ended > 0)
 	{
 		PRINT_DEBUG("%s; dwpal_command_get_ended (%d) ==> cont...\n", __FUNCTION__, dwpal_command_get_ended);
@@ -611,6 +607,29 @@ static DWPAL_Ret dwpal_command_get_ended_socket_create(char *socketName)
 }
 
 
+static DWPAL_Ret nlCmdGetCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data)
+{
+	PRINT_DEBUG("%s Entry; ifname= '%s', event= %d, subevent= %d (len= %d)\n", __FUNCTION__, ifname, event, subevent, len);
+
+	memcpy_s((void *)getOutData, (rsize_t)len, (void *)data, (rsize_t)len);
+	*getOutLen = (size_t)len;
+
+	{
+		int i;
+		size_t lenToPrint = (*getOutLen <= 10)? *getOutLen : 10;
+
+		PRINT_DEBUG("%s; Output data from the 'get' function:\n", __FUNCTION__);
+		for (i=0; i < (int)lenToPrint; i++)
+		{
+			PRINT_DEBUG(" 0x%x", getOutData[i]);
+		}
+		PRINT_DEBUG("\n");
+	}
+
+	return DWPAL_SUCCESS;
+}
+
+
 static DWPAL_Ret nl_cmd_handle(char *ifname,
                                unsigned int nl80211Command,
 							   CmdIdType cmdIdType,
@@ -618,12 +637,10 @@ static DWPAL_Ret nl_cmd_handle(char *ifname,
 							   unsigned char *vendorData,
 							   size_t vendorDataSize,
 							   size_t *outLen,
-							   unsigned char *outData,
-							   int vendorSubcmd)
+							   unsigned char *outData)
 {
 	int    i, idx, ret;
 	bool   isReceived = false;
-	size_t lenToPrint;
 
 	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x, vendorDataSize= %d, outLen= 0x%x, outData= 0x%x\n",
 	            __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand, vendorDataSize, (unsigned int)outLen, (unsigned int)outData);
@@ -641,25 +658,14 @@ static DWPAL_Ret nl_cmd_handle(char *ifname,
 
 	PRINT_DEBUG("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
-	if ( (outLen != NULL) && (outData != NULL) && (vendorSubcmd != -1) )
+	if ( (outLen != NULL) && (outData != NULL) )
 	{
 		/* Handle a command which invokes an event with the output data */
-		pid_t pid = getpid();
-		char  socketName[SOCKET_NAME_LENGTH] = "\0";
-
 		getOutLen = outLen;
 		getOutData = outData;
-		getVendorSubcmd = vendorSubcmd;
-
-		snprintf(socketName, sizeof(socketName) - 1, "%s_%d", COMMAND_ENDED_SOCKET, pid);
-
-		if (dwpal_command_get_ended_socket_create(socketName) == DWPAL_FAILURE)
-		{
-			PRINT_ERROR("%s; dwpal_command_get_ended_socket_create returned ERROR ==> Abort!\n", __FUNCTION__);
-			return DWPAL_FAILURE;
-		}
 
 		ret = dwpal_driver_nl_cmd_send(context[idx],
+									   DWPAL_NL_CMD_GET,
 									   ifname,
 									   nl80211Command,
 									   cmdIdType,
@@ -672,21 +678,13 @@ static DWPAL_Ret nl_cmd_handle(char *ifname,
 			return DWPAL_FAILURE;
 		}
 
-		dwpal_command_get_ended_socket_wait(socketName, &isReceived);
+		dwpal_command_get_ended_socket_wait(&isReceived);
 		if (isReceived == false)
 		{
-			PRINT_ERROR("%s; vendorSubcmd (%d) was NOT received ==> Abort!\n", __FUNCTION__, vendorSubcmd);
+			PRINT_ERROR("%s; 'get command' (subCommand= 0x%x) was NOT received ==> Abort!\n", __FUNCTION__, subCommand);
 			*outLen = 0;
 			return DWPAL_FAILURE;
 		}
-
-		lenToPrint = (*outLen <= 10)? *outLen : 10;
-
-		for (i=0; i < (int)lenToPrint; i++)
-		{
-			PRINT_DEBUG(" 0x%x", outData[i]);
-		}
-		PRINT_DEBUG("\n");
 
 		return DWPAL_SUCCESS;
 	}
@@ -694,9 +692,9 @@ static DWPAL_Ret nl_cmd_handle(char *ifname,
 	{
 		getOutLen = NULL;
 		getOutData = NULL;
-		getVendorSubcmd = -1;
 
 		return dwpal_driver_nl_cmd_send(context[idx],
+										DWPAL_NL_EVENT_GET,
 										ifname,
 										nl80211Command,
 										cmdIdType,
@@ -709,11 +707,11 @@ static DWPAL_Ret nl_cmd_handle(char *ifname,
 
 /* APIs */
 
-DWPAL_Ret dwpal_ext_driver_nl_get(char *ifname, unsigned int nl80211Command, CmdIdType cmdIdType, unsigned int subCommand, unsigned char *vendorData, size_t vendorDataSize, size_t *outLen, unsigned char *outData, int vendorSubcmd)
+DWPAL_Ret dwpal_ext_driver_nl_get(char *ifname, unsigned int nl80211Command, CmdIdType cmdIdType, unsigned int subCommand, unsigned char *vendorData, size_t vendorDataSize, size_t *outLen, unsigned char *outData)
 {
 	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand);
 
-	return nl_cmd_handle(ifname, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, outLen, outData, vendorSubcmd);
+	return nl_cmd_handle(ifname, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, outLen, outData);
 }
 
 
@@ -721,13 +719,29 @@ DWPAL_Ret dwpal_ext_driver_nl_cmd_send(char *ifname, unsigned int nl80211Command
 {
 	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x, vendorDataSize= %d\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand, vendorDataSize);
 
-	return nl_cmd_handle(ifname, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, NULL, NULL, -1);
+	return nl_cmd_handle(ifname, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, NULL, NULL);
 }
 
 
 DWPAL_Ret dwpal_ext_driver_nl_detach(void)
 {
 	int idx;
+
+	if (dwpal_command_get_ended != (-1))
+	{
+		pid_t pid = getpid();
+		char  socketName[SOCKET_NAME_LENGTH] = "\0";
+
+		snprintf(socketName, sizeof(socketName) - 1, "%s_%d", COMMAND_ENDED_SOCKET, pid);
+
+		if (close(dwpal_command_get_ended) == (-1))
+		{
+			PRINT_ERROR("%s; close() fail; dwpal_command_get_ended= %d; errno= %d ('%s')\n", __FUNCTION__, dwpal_command_get_ended, errno, strerror(errno));
+		}
+
+		unlink(socketName);
+		dwpal_command_get_ended = (-1);
+	}
 
 	if (interfaceIndexGet("Driver", "ALL", &idx) == DWPAL_INTERFACE_IS_DOWN)
 	{
@@ -778,6 +792,12 @@ DWPAL_Ret dwpal_ext_driver_nl_attach(DwpalExtNlEventCallback nlEventCallback)
 
 	PRINT_DEBUG("%s; interfaceIndexCreate returned idx= %d\n", __FUNCTION__, idx);
 
+	if (dwpal_command_get_ended_socket_create() == DWPAL_FAILURE)
+	{
+		PRINT_ERROR("%s; dwpal_command_get_ended_socket_create returned ERROR ==> Abort!\n", __FUNCTION__);
+		return DWPAL_FAILURE;
+	}
+
 	/* Cancel the listener thread, if it does exist */
 	listenerThreadSet(THREAD_CANCEL);
 
@@ -788,6 +808,9 @@ DWPAL_Ret dwpal_ext_driver_nl_attach(DwpalExtNlEventCallback nlEventCallback)
 	}
 
 	dwpalService[idx]->nlEventCallback = nlEventCallback;
+
+	/* Register here the internal static callback function of the 'get command' event */
+	dwpalService[idx]->nlCmdGetCallback = nlCmdGetCallback;
 
 	/* Create the listener thread, if it does NOT exist yet */
 	listenerThreadSet(THREAD_CREATE);

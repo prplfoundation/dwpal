@@ -31,7 +31,7 @@
 #define DWPAL_FIELD_NAME_LENGTH                128
 #define HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH   1024
 #define SOCKET_NAME_LENGTH                     256
-#define COMMAND_ENDED_SOCKET                   "/var/run/dwpal_command_get_ended_socket"
+#define COMMAND_ENDED_SOCKET                   "/tmp/dwpal_command_get_ended_socket"
 
 #if defined YOCTO
 #define STRTOK_S(...)       puma_strtok_s(__VA_ARGS__)
@@ -55,6 +55,12 @@ typedef enum
 	DWPAL_INTERFACE_IS_DOWN
 } DWPAL_Ret;
 
+typedef enum
+{
+	DWPAL_NL_EVENT_GET = 0,
+	DWPAL_NL_CMD_GET,
+} DWPAL_NlEventType;
+
 typedef void (*DWPAL_wpaCtrlEventCallback)(char *msg, size_t len);  /* callback function for hostapd received events while command is being sent; can be NULL */
 typedef DWPAL_Ret (*DWPAL_nlEventCallback)(char* ifname, int event, int subevent, size_t len, unsigned char *data);  /* callback function for Driver (via nl) events */
 
@@ -66,7 +72,9 @@ typedef enum
 	DWPAL_UNSIGNED_CHAR_PARAM,
 	DWPAL_SHORT_INT_PARAM,
 	DWPAL_INT_PARAM,
+	DWPAL_UNSIGNED_INT_PARAM,
 	DWPAL_LONG_LONG_INT_PARAM,
+	DWPAL_UNSIGNED_LONG_LONG_INT_PARAM,
 	DWPAL_INT_ARRAY_PARAM,
 	DWPAL_INT_HEX_PARAM,
 	DWPAL_INT_HEX_ARRAY_PARAM,
@@ -104,9 +112,16 @@ typedef enum
 
 
 /* APIs */
-DWPAL_Ret dwpal_driver_nl_cmd_send(void *context, char *ifname, enum nl80211_commands nl80211Command, CmdIdType cmdIdType, enum ltq_nl80211_vendor_subcmds subCommand, unsigned char *vendorData, size_t vendorDataSize);
-DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_nlEventCallback nlEventCallback);
-DWPAL_Ret dwpal_driver_nl_fd_get(void *context, int *fd /*OUT*/);
+DWPAL_Ret dwpal_driver_nl_cmd_send(void *context,
+                                   DWPAL_NlEventType nlEventType,
+								   char *ifname,
+								   enum nl80211_commands nl80211Command,
+								   CmdIdType cmdIdType,
+								   enum ltq_nl80211_vendor_subcmds subCommand,
+								   unsigned char *vendorData,
+								   size_t vendorDataSize);
+DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_NlEventType nlEventType, DWPAL_nlEventCallback nlEventCallback);
+DWPAL_Ret dwpal_driver_nl_fd_get(void *context, int *fd /*OUT*/, int *fdCmdGet /*OUT*/);
 DWPAL_Ret dwpal_driver_nl_detach(void **context /*IN/OUT*/);
 DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/);
 
