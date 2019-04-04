@@ -1,13 +1,12 @@
-/*  ***************************************************************************** 
+/*  *****************************************************************************
  *         File Name    : dwpal.c                             	                *
- *         Description  : D-WPAL control interface 		                        * 
+ *         Description  : D-WPAL control interface 		                        *
  *                                                                              *
  *  *****************************************************************************/
 
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <pthread.h>
 
@@ -20,10 +19,11 @@
 #include <net/if.h>
 
 #if defined YOCTO
-#include <puma_safe_libc.h>
+#include <slibc/string.h>
 #else
 #include "safe_str_lib.h"
 #endif
+
 #include "dwpal.h"
 #include "dwpal_log.h"	//Logging
 
@@ -285,7 +285,7 @@ static DWPAL_Ret nlSocketCreate(struct nl_sock **nlSocket, int *fd)
 
 static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int totalSizeOfArg, char fieldValue[] /*OUT*/)
 {
-	char *param = STRTOK_S(buf, bufLen, " ", p2str);
+	char *param = strtok_s(buf, bufLen, " ", p2str);
 
 	if (param == NULL)
 	{
@@ -295,13 +295,13 @@ static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int 
 
 	if (fieldValue != NULL)
 	{
-		if (STRNLEN_S(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) > (size_t)(totalSizeOfArg - 1))
+		if (strnlen_s(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) > (size_t)(totalSizeOfArg - 1))
 		{
-			console_printf("%s; param ('%s') length (%d) is higher than allocated size (%d) ==> Abort!\n", __FUNCTION__, param, STRNLEN_S(param, totalSizeOfArg), totalSizeOfArg-1);
+			console_printf("%s; param ('%s') length (%d) is higher than allocated size (%d) ==> Abort!\n", __FUNCTION__, param, strnlen_s(param, totalSizeOfArg), totalSizeOfArg-1);
 			return false;
 		}
 
-		STRCPY_S(fieldValue, STRNLEN_S(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, param);
+		strcpy_s(fieldValue, strnlen_s(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, param);
 	}
 
 	return true;
@@ -318,13 +318,13 @@ static bool arrayValuesGet(char *stringOfValues, size_t totalSizeOfArg, ParamPar
 
 	int     idx = 0;
 	char    *p2str, *param, *tokenString;
-	rsize_t dmaxLen = STRNLEN_S(stringOfValues, DWPAL_TO_HOSTAPD_MSG_LENGTH);
+	rsize_t dmaxLen = strnlen_s(stringOfValues, DWPAL_TO_HOSTAPD_MSG_LENGTH);
 
 	tokenString = stringOfValues;
 
 	do
 	{
-		param = STRTOK_S(tokenString, &dmaxLen, " ", &p2str);
+		param = strtok_s(tokenString, &dmaxLen, " ", &p2str);
 		if (param == NULL)
 		{
 			((int *)array)[idx] = 0;
@@ -348,7 +348,7 @@ static bool arrayValuesGet(char *stringOfValues, size_t totalSizeOfArg, ParamPar
 			}
 			else if (paramParsingType == DWPAL_STR_ARRAY_PARAM)
 			{
-				STRCPY_S(&(((char *)array)[idx * HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH]), STRNLEN_S(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, param);
+				strcpy_s(&(((char *)array)[idx * HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH]), strnlen_s(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, param);
 			}
 		}
 
@@ -392,7 +392,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 
 	/* localStringToSearch set to stringToSearch with addition of " " at the beginning -
 	   it is a MUST in order to differentiate between "ssid" and "bssid" */
-	localStringToSearch = (char *)malloc(STRNLEN_S(stringToSearch, DWPAL_FIELD_NAME_LENGTH) + 2 /*'\0' & 'blank' */);
+	localStringToSearch = (char *)malloc(strnlen_s(stringToSearch, DWPAL_FIELD_NAME_LENGTH) + 2 /*'\0' & 'blank' */);
 	if (localStringToSearch == NULL)
 	{
 		console_printf("%s; localStringToSearch is NULL ==> Abort!\n", __FUNCTION__);
@@ -409,9 +409,9 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 		ret = true;  /* mark that at least one fiels was found */
 
 		/* move the string pointer to the beginning of the field's value */
-		restOfStringStart = stringStart + STRNLEN_S(localStringToSearch, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH);
+		restOfStringStart = stringStart + strnlen_s(localStringToSearch, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH);
 		//console_printf("%s; stringStart= 0x%x, strlen of ('%s')= %d ==> restOfStringStart= 0x%x\n",
-			   //__FUNCTION__, (unsigned int)stringStart, localStringToSearch, STRNLEN_S(localStringToSearch, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH), (unsigned int)restOfStringStart);
+			   //__FUNCTION__, (unsigned int)stringStart, localStringToSearch, strnlen_s(localStringToSearch, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH), (unsigned int)restOfStringStart);
 
 		/* find all beginning of all other fields (and get the closest to the current field) in order to know where the field's value ends */
 		i = 0;
@@ -444,7 +444,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 		if (closerStringEnd == NULL)
 		{  /* Meaning, this is the last parameter in the string */
 			//console_printf("%s; closerStringEnd is NULL; restOfStringStart= '%s'\n", __FUNCTION__, restOfStringStart);
-			closerStringEnd = restOfStringStart + STRNLEN_S(restOfStringStart, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1 /* for '\0' */;
+			closerStringEnd = restOfStringStart + strnlen_s(restOfStringStart, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1 /* for '\0' */;
 			//console_printf("%s; [2] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
 
 			//console_printf("%s; String end did NOT found ==> set closerStringEnd to the end of buf; closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
@@ -464,7 +464,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 		}
 
 		/* Copy the characters of the value, and set the last one to '\0' */
-		STRNCPY_S(tempStringOfValues, sizeof(tempStringOfValues), restOfStringStart, numOfCharacters);
+		strncpy_s(tempStringOfValues, sizeof(tempStringOfValues), restOfStringStart, numOfCharacters);
 		tempStringOfValues[numOfCharacters - 1] = '\0';
 		//console_printf("%s; stringToSearch= '%s'; tempStringOfValues= '%s'\n", __FUNCTION__, stringToSearch, tempStringOfValues);
 
@@ -539,7 +539,7 @@ static bool isColumnOfFields(char *msg, char *endFieldName[])
 			}
 
 			/* Move ahead inside the line, to avoid double recognition (like "PacketsSent" and "DiscardPacketsSent") */
-			msg += STRNLEN_S(endFieldName[i], HOSTAPD_TO_DWPAL_MSG_LENGTH);
+			msg += strnlen_s(endFieldName[i], HOSTAPD_TO_DWPAL_MSG_LENGTH);
 		}
 
 		i++;
@@ -564,7 +564,7 @@ static bool columnOfParamsToRowConvert(char *msg, size_t msgLen, char *endFieldN
 		return false;
 	}
 
-	lineMsg = STRTOK_S(localMsg, (rsize_t *)&dmaxLen, "\n", &p2str);
+	lineMsg = strtok_s(localMsg, (rsize_t *)&dmaxLen, "\n", &p2str);
 
 	while (lineMsg != NULL)
 	{
@@ -576,7 +576,7 @@ static bool columnOfParamsToRowConvert(char *msg, size_t msgLen, char *endFieldN
 			break;
 		}
 
-		lineMsg = STRTOK_S(NULL, (rsize_t *)&dmaxLen, "\n", &p2str);
+		lineMsg = strtok_s(NULL, (rsize_t *)&dmaxLen, "\n", &p2str);
 	}
 
 	free ((void *)localMsg);
@@ -976,7 +976,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 		return DWPAL_FAILURE;
 	}
 
-	if ( (msgStringLen = STRNLEN_S(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH)) > msgLen )
+	if ( (msgStringLen = strnlen_s(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH)) > msgLen )
 	{
 		console_printf("%s; msgStringLen (%d) is bigger than msgLen (%d) ==> Abort!\n", __FUNCTION__, msgStringLen, msgLen);
 		return DWPAL_FAILURE;
@@ -1124,7 +1124,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				}
 
 				memset((void *)endFieldName[idx], '\0', DWPAL_FIELD_NAME_LENGTH);  /* Clear the field name */
-				STRCPY_S(endFieldName[idx], STRNLEN_S(fieldsToParse[i].stringToSearch, DWPAL_FIELD_NAME_LENGTH) + 1, fieldsToParse[i].stringToSearch);
+				strcpy_s(endFieldName[idx], strnlen_s(fieldsToParse[i].stringToSearch, DWPAL_FIELD_NAME_LENGTH) + 1, fieldsToParse[i].stringToSearch);
 
 				idx++;
 			}
@@ -1143,7 +1143,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			else
 			{
 				memset((void *)endFieldName[idx], '\0', DWPAL_FIELD_NAME_LENGTH);  /* Clear the field name */
-				STRCPY_S(endFieldName[idx], 2, "\n");
+				strcpy_s(endFieldName[idx], 2, "\n");
 				isEndFieldNameAllocated = true;
 			}
 		}
@@ -1165,7 +1165,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 
 	/* Perform the actual parsing */
 	//console_printf("%s; [1.1] dmaxLen= %d, p2str= '%s'\n", __FUNCTION__, dmaxLen, p2str);
-	lineMsg = STRTOK_S(msg, &dmaxLen, "\n", &p2str);
+	lineMsg = strtok_s(msg, &dmaxLen, "\n", &p2str);
 	localMsg = lineMsg;
 	lineIdx = 0;
 
@@ -1206,7 +1206,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 							}
 						}
 
-						dmaxLenMandatory = (rsize_t)STRNLEN_S(lineMsg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
+						dmaxLenMandatory = (rsize_t)strnlen_s(lineMsg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
 						if (mandatoryFieldValueGet(((localMsg != NULL)? localMsgDup : NULL) /*will be NULL starting from 2nd param*/,
 						                           &dmaxLenMandatory,
 						                           &p2strMandatory,
@@ -1246,15 +1246,15 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 									(*(fieldsToParse[i].numOfValidArgs))++;
 								}
 
-								if ((STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1) > fieldsToParse[i].totalSizeOfArg)
+								if ((strnlen_s(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1) > fieldsToParse[i].totalSizeOfArg)
 								{
 									console_printf("%s; string length (%d) is bigger the allocated string size (%d)\n",
-												__FUNCTION__, STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, fieldsToParse[i].totalSizeOfArg);
+												__FUNCTION__, strnlen_s(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, fieldsToParse[i].totalSizeOfArg);
 									ret = DWPAL_FAILURE;  /* longer string then allocated ==> Abort! */
 								}
 								else
 								{
-									STRCPY_S((char *)field, STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, stringOfValues);
+									strcpy_s((char *)field, strnlen_s(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, stringOfValues);
 								}
 							}
 							else
@@ -1747,7 +1747,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			free((void *)localMsgDup);
 		}
 
-		lineMsg = STRTOK_S(NULL, &dmaxLen, "\n", &p2str);
+		lineMsg = strtok_s(NULL, &dmaxLen, "\n", &p2str);
 		lineIdx++;
 		localMsg = lineMsg;
 	}
@@ -1875,7 +1875,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 
 	ret = wpa_ctrl_request(((DWPAL_Context *)context)->interface.hostapd.wpaCtrlPtr,
 	                       cmd,
-						   STRNLEN_S(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH),
+						   strnlen_s(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH),
 						   reply,
 						   replyLen /* should be msg-len in/out param */,
 						   ((DWPAL_Context *)context)->interface.hostapd.wpaCtrlEventCallback);
@@ -1952,9 +1952,9 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 		{
 			dmaxLen = (rsize_t)*msgLen;
 			localMsg = strdup(msg);
-			localOpCode = STRTOK_S(localMsg, &dmaxLen, ">", &p2str);
-			localOpCode = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
-			STRCPY_S(opCode, STRNLEN_S(localOpCode, DWPAL_OPCODE_STRING_LENGTH) + 1, localOpCode);
+			localOpCode = strtok_s(localMsg, &dmaxLen, ">", &p2str);
+			localOpCode = strtok_s(NULL, &dmaxLen, " ", &p2str);
+			strcpy_s(opCode, strnlen_s(localOpCode, DWPAL_OPCODE_STRING_LENGTH) + 1, localOpCode);
 			free((void *)localMsg);
 		}
 	}
@@ -2147,8 +2147,8 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPN
 	if (access(wpaCtrlName, F_OK) == 0)
 	{
 		//console_printf("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
-		STRCPY_S(localContext->interface.hostapd.operationMode, 3, "AP");
-		STRCPY_S(localContext->interface.hostapd.wpaCtrlName, STRNLEN_S(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
+		strcpy_s(localContext->interface.hostapd.operationMode, 3, "AP");
+		strcpy_s(localContext->interface.hostapd.wpaCtrlName, strnlen_s(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
 	}
 	else
 	{
@@ -2156,8 +2156,8 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPN
 		if (access(wpaCtrlName, F_OK) == 0)
 		{
 			//console_printf("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
-			STRCPY_S(localContext->interface.hostapd.operationMode, 4, "STA");
-			STRCPY_S(localContext->interface.hostapd.wpaCtrlName, STRNLEN_S(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
+			strcpy_s(localContext->interface.hostapd.operationMode, 4, "STA");
+			strcpy_s(localContext->interface.hostapd.wpaCtrlName, strnlen_s(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
 		}
 		else
 		{
