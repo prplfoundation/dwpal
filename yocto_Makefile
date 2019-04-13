@@ -12,6 +12,7 @@ EXTRALDFLAGS := -L./ -ldwpal -lcurses -lreadline -lrt -lpthread
 EXTRACFLAGS := -I./include -DCONFIG_CTRL_IFACE -DCONFIG_CTRL_IFACE_UNIX -DYOCTO
 
 LIB_OBJS := dwpal.o dwpal_ext.o wpa_ctrl.o os_unix.o
+DWPAL_CLI_OBJS := stats.o dwpal_cli.o
 
 %.o: %.c
 	$(CC) $(INCLUDES) $(CFLAGS) $(EXTRACFLAGS) $(LOG_CFLAGS) $(DEFS) $(CPPFLAGS) -fPIC -MT $@ -MD -MP -MF $@.d -c -o $@ $<
@@ -22,19 +23,19 @@ $(PKG_NAME).so.$(VERSION): $(LIB_OBJS)
 $(PKG_NAME).so: $(PKG_NAME).so.$(VERSION)
 	ln -sf $< $@
 
-dwpal_debug_cli: dwpal_debug_cli.o $(PKG_NAME).so.$(VERSION) $(PKG_NAME).so
-	$(CC) -o $@ $< $(EXTRALDFLAGS) $(LDFLAGS)
+dwpal_cli: $(DWPAL_CLI_OBJS) $(PKG_NAME).so.$(VERSION) $(PKG_NAME).so
+	$(CC) -o $@ $? $(EXTRALDFLAGS) $(LDFLAGS)
 
 dwpal_band_steering: dwpal_band_steering_app.o $(PKG_NAME).so.$(VERSION) $(PKG_NAME).so
 	$(CC) -o $@ $< $(EXTRALDFLAGS) $(LDFLAGS)
 
 .PHONY: all
-all: $(PKG_NAME).so.$(VERSION) dwpal_debug_cli $(PKG_NAME).so dwpal_band_steering
+all: $(PKG_NAME).so.$(VERSION) dwpal_cli $(PKG_NAME).so dwpal_band_steering
 
 .PHONY: clean
 clean:
 	@rm -f $(LIB_OBJS)
 	@rm -f lib$(NAME).so*
-	@rm -f dwpal_debug_cli.o dwpal_debug_cli dwpal_band_steering_app.o dwpal_band_steering
+	@rm -f dwpal_cli.o dwpal_cli dwpal_band_steering_app.o dwpal_band_steering stats.o
 	@rm -f *.o.d
 

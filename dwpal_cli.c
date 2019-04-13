@@ -45,7 +45,7 @@
 #endif
 
 #define NUM_OF_LISTENING_EVENTS 16
-
+extern int check_stats_cmd(int num_arg,char *cmd[]);
 DWPAL_Ret nlCliOneShotEventCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data);
 DWPAL_Ret nlCliEventCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data);
 void dwpalCliCtrlEventCallback(char *msg, size_t len);
@@ -2817,6 +2817,12 @@ int main(int argc, char *argv[])
 						}
 					}
 				}
+			}
+		}
+		else {
+			if( check_stats_cmd(argc-1,&argv[1]) ) {
+				PRINT_ERROR(" stats command failed\n");
+				return -1;
 			}
 		}
 

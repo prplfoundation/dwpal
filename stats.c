@@ -1,0 +1,335 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
+#include <uci.h>
+#include <stdlib.h>
+#include "dwpal.h"
+#include "dwpal_ext.h"
+#include "stats.h"
+
+
+/* global declaration */
+void *goutData = NULL; // for traversing NL data
+int gSpace = 0; // for indentation
+int gEnum = 0; // to find enum stat
+
+
+void convertMac(char *sMac, unsigned char *cMac)
+{
+        int i;
+        for(i = 0; i < 6; i++) {
+                cMac[i] = (unsigned char) strtoul(sMac, &sMac, 16);
+                sMac++;
+        }
+}
+
+static unsigned int stat_ipow(unsigned int base, unsigned int power)
+{
+  unsigned int i;
+  unsigned int res = 1;
+
+  for(i = 0; i < power; i++)
+  {
+    res *= base;
+  }
+
+  return res;
+}
+
+void print_type(type t,char *description,int len)
+{
+	int tmp = gSpace;
+	if( t != BITFIELD  && t != ENUM )
+		INDENTATION1(tmp)
+	switch (t)
+	{
+		case BYTE:
+		{
+			printf("%20u : %s\n", *((unsigned char *)goutData) , description);
+			goutData += sizeof(unsigned char);    
+		}
+		break;
+	
+		case SLONG:
+		{
+			printf("%20i : %s\n", *((signed int *) goutData), description);
+			goutData += sizeof(signed int);
+		}
+		break;
+
+		case LONG:
+		{
+			printf("%20u : %s\n", *((unsigned int *) goutData), description);
+			goutData += sizeof(unsigned int);
+		}
+ 		break;
+
+		case SBYTEARRAY:
+		{
+			printf("%20s : %s\n","",description);
+			for(int i = 0; i < len; i++)
+			{
+				tmp = gSpace;
+				INDENTATION1(tmp)
+				printf("%20i : [%d]\n",*((signed char *) goutData),i);
+				goutData += sizeof(signed char);
+			}
+		}
+		break;
+
+		case SLONGARRAY:
+		{
+			printf("%20s : %s\n","",description);
+			for(int i = 0; i < len; i++)
+			{
+				tmp = gSpace;
+				INDENTATION1(tmp)
+				printf("%20i : [%d]\n",*((signed int *) goutData),i);
+				goutData += sizeof(signed int);
+			}
+		}
+		break;
+
+		case BITFIELD:
+		{
+			tmp = gSpace;
+			if( len )
+				goutData -= sizeof(unsigned int);
+			if(  ( *((unsigned  int *) goutData) & (0x01<<len) )) {
+				INDENTATION1(tmp);
+				printf("%20s : \n",description);
+			}
+		}
+		break;
+
+		case FLAG:
+		{
+			printf("%20s : %s\n", *((unsigned  int *) goutData)? "True" : "False",description);
+			goutData += sizeof(unsigned int);
+		}
+		break;
+
+		case ENUM:
+		{
+			if( len )
+				goutData -= sizeof(unsigned int);
+			if(*((unsigned  int *) goutData) == len){ 
+				tmp = gSpace;
+				INDENTATION1(tmp)
+				gEnum = 1;
+				printf("%20s : ", description);
+			}
+			
+		}
+		break;
+
+		case TIMESTAMP:
+		{
+			tmp = gSpace;
+			INDENTATION1(tmp)
+			printf("%11d msec ago : %s\n",*((unsigned int *)goutData),description);
+			goutData += sizeof(unsigned int);
+		}
+		break;
+
+		case LONGFRACT:
+		{
+                	tmp = gSpace;
+	                INDENTATION1(tmp)
+  			if (len != 0)
+			{
+				unsigned int base = stat_ipow(10, len);
+				unsigned int  re_value =  *(( unsigned int *)goutData) / base;
+				unsigned int fract_value = *(( unsigned int *)goutData) % base;
+				printf("%*u.%0*u : %s\n", 20 - len - 1, re_value, len, fract_value, description);
+			}
+			else
+      				printf("%20u : %s\n", *(( unsigned int *)goutData), description);
+
+			goutData += sizeof(unsigned int);
+		}
+		break;
+
+		case SLONGFRACT:
+		{
+	                tmp = gSpace;
+        	        INDENTATION1(tmp)
+		  	if (len != 0)
+			{
+				unsigned int base = stat_ipow(10, len);
+				int  re_value =  *(( signed int *)goutData) / base;
+				int fract_value = *(( signed int *)goutData) % base;
+      				printf("%*i.%0*i : %s\n", 20 - len - 1, re_value, len, fract_value, description);
+			}
+			else
+      				printf("%20i : %s\n", *(( signed int *)goutData), description);
+
+			goutData += sizeof(signed int);
+		}
+		break;
+
+		case HUGE:
+		{
+	                tmp = gSpace;
+        	        INDENTATION1(tmp)
+			printf("%20lli : %s\n", *((signed long long *)goutData), description);
+			goutData += sizeof(signed long long);
+		}
+		break;
+	}
+}
+
+static int NlEventCallback(char* ifname, int event, int subevent, size_t len, unsigned char *data)
+{
+        for(int i=0;i<len;i++)
+                printf("%x ",data[i]);
+	return 0;
+}
+
+void help_print(stat_id c,bool original)
+{
+	int i,tmp=0;
+
+	for(i = 0; i < gStat[c].size; i++)
+	{
+		if( !i && original )
+			gSpace++;
+		if( gStat[c].sts[i].t != NONE )
+		{
+			print_type(gStat[c].sts[i].t, (char *)gStat[c].sts[i].description, gStat[c].sts[i].element);
+			if(gStat[c].sts[i].t == BITFIELD || gStat[c].sts[i].t == ENUM)
+				goutData += sizeof(unsigned int);
+		}
+		else
+		{
+			tmp = gSpace;
+				if( gStat[c].sts[i].c == NETWORK_BITFIELD ) {
+					INDENTATION1(tmp)
+					printf("%20s : %s\n","",gStat[c].sts[i].description);
+				}
+				else {
+					if ( ( gStat[c].sts[i].c != PHY_ENUM ) && ( gStat[c].sts[i].c != VENDOR_ENUM ) ) {
+						INDENTATION1(tmp)
+						PRINT_DESCRIPTION(gStat[c].sts[i])
+					}
+				}
+		}
+
+		if( gStat[c].sts[i].c != c ) {
+			if( gStat[c].sts[i].c != NETWORK_BITFIELD )
+				gSpace++;
+			help_print(gStat[c].sts[i].c, false );
+		}
+	}
+	if ( !original )
+		gSpace--;
+	i--;
+	if( ( gStat[c].sts[i].t == ENUM ) ) {
+		char ptr[64]= {'\0'};
+		switch ( gStat[c].sts[i].c )
+		{
+			case VENDOR_ENUM:
+				snprintf(ptr,sizeof("Vendor"),"Vendor");
+				break;
+			case PHY_ENUM:
+				snprintf(ptr,sizeof("Network (Phy) Mode"),"Network (Phy) Mode");
+				break;
+			default:
+				;
+		}
+		if( !gEnum )
+		{
+			int tmp = gSpace;
+			INDENTATION1(tmp); 
+			printf("%20s : %s\n","Unknown value",ptr);
+		}
+		else {
+			printf("%s\n",ptr);
+			gEnum = 0;
+		}
+	}	
+	
+}
+
+int dump_sta_list(char *outData,unsigned int outLen)
+{
+  unsigned int sta_number = ( outLen - NL_ATTR_HDR )/sizeof(peer_list_t);
+  peer_list_t *sta = (peer_list_t *)&outData[NL_ATTR_HDR]; 
+
+  if (sta_number > 0)
+  {
+    unsigned int i;
+    fprintf(stdout, "\n\n%u peer(s) connected:\n\n", sta_number);
+    for(i = 0; i < sta_number; i++)
+    {
+      if(sta->is_sta_auth)
+      {
+        fprintf(stdout, "\t" MAC_PRINTF_FMT "\n", MAC_PRINTF_ARG(&sta->addr));
+      }
+      else
+      {
+        fprintf(stdout, "\t" MAC_PRINTF_FMT " (not authorized)\n", MAC_PRINTF_ARG(&sta->addr));
+      }
+	sta++;
+    }
+  }
+  else
+  {
+    fprintf(stdout, "\n\nNo peers connected.\n\n");
+  }
+
+  fprintf(stdout, "\n");
+}
+
+int check_stats_cmd(int num_arg, char *cmd[])
+{
+	char outData[MAX_NL_REPLY] = { '\0' };
+	unsigned int outLen,i;
+	char Vendordata[6] = {'\0'};
+	int VendorDataLen = 0;
+
+	if( num_arg <  2) {
+		PRINT_ERROR(" Need atleaset 2 arguments ie interfacename and command\n");
+		return -1;
+	}
+	
+	for( i = 0; i < sizeof(gCmd)/sizeof(gCmd[0]); i++ ) 
+	{
+		if( !strncmp(cmd[1], gCmd[i].cmd, strlen(gCmd[i].cmd)) ) {
+			if( num_arg -1 != gCmd[i].num_arg ) {
+				printf("%s\n",(char *)&gCmd[i].usage);
+				return -1;
+			}
+			if( num_arg > 2 ) {
+				convertMac(cmd[2],Vendordata);
+				VendorDataLen = sizeof(Vendordata);
+				PRINT_DEBUG("Vendordata %s\n",Vendordata);
+			}
+			if (dwpal_ext_driver_nl_attach(NlEventCallback) == DWPAL_FAILURE)
+			{
+				PRINT_ERROR("%s; dwpal_driver_nl_attach returned ERROR ==> Abort!\n", __FUNCTION__);
+				return DWPAL_FAILURE;
+			}
+			if (dwpal_ext_driver_nl_get(cmd[0], NL80211_CMD_VENDOR, DWPAL_NETDEV_ID, gCmd[i].id ,\
+				 Vendordata, VendorDataLen, &outLen, outData) != DWPAL_SUCCESS)
+			{
+				PRINT_ERROR("%s; dwpal_ext_driver_nl_get returned ERROR ==> Abort!\n", __FUNCTION__);
+				return -1;
+			}
+			if( outLen )
+				goutData = &outData[NL_ATTR_HDR];
+			else
+				return -1;
+
+			if ( gCmd[i].c != PEER_LIST )
+				help_print( gCmd[i].c, true );
+			else
+				dump_sta_list(outData,outLen);
+			break;
+		}
+	}
+	return 0;
+}
+		
+		
+
