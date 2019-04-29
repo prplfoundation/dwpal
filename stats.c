@@ -40,7 +40,7 @@ void print_type(type t,char *description,int len)
 {
 	int tmp = gSpace;
 	if( t != BITFIELD  && t != ENUM )
-		INDENTATION1(tmp)
+		INDENTATION(tmp)
 	switch (t)
 	{
 		case BYTE:
@@ -70,7 +70,7 @@ void print_type(type t,char *description,int len)
 			for(int i = 0; i < len; i++)
 			{
 				tmp = gSpace;
-				INDENTATION1(tmp)
+				INDENTATION(tmp)
 				printf("%20i : [%d]\n",*((signed char *) goutData),i);
 				goutData += sizeof(signed char);
 			}
@@ -83,7 +83,7 @@ void print_type(type t,char *description,int len)
 			for(int i = 0; i < len; i++)
 			{
 				tmp = gSpace;
-				INDENTATION1(tmp)
+				INDENTATION(tmp)
 				printf("%20i : [%d]\n",*((signed int *) goutData),i);
 				goutData += sizeof(signed int);
 			}
@@ -96,7 +96,7 @@ void print_type(type t,char *description,int len)
 			if( len )
 				goutData -= sizeof(unsigned int);
 			if(  ( *((unsigned  int *) goutData) & (0x01<<len) )) {
-				INDENTATION1(tmp);
+				INDENTATION(tmp);
 				printf("%20s : \n",description);
 			}
 		}
@@ -115,7 +115,7 @@ void print_type(type t,char *description,int len)
 				goutData -= sizeof(unsigned int);
 			if(*((unsigned  int *) goutData) == len){ 
 				tmp = gSpace;
-				INDENTATION1(tmp)
+				INDENTATION(tmp)
 				gEnum = 1;
 				printf("%20s : ", description);
 			}
@@ -126,7 +126,7 @@ void print_type(type t,char *description,int len)
 		case TIMESTAMP:
 		{
 			tmp = gSpace;
-			INDENTATION1(tmp)
+			INDENTATION(tmp)
 			printf("%11d msec ago : %s\n",*((unsigned int *)goutData),description);
 			goutData += sizeof(unsigned int);
 		}
@@ -135,7 +135,7 @@ void print_type(type t,char *description,int len)
 		case LONGFRACT:
 		{
                 	tmp = gSpace;
-	                INDENTATION1(tmp)
+	                INDENTATION(tmp)
   			if (len != 0)
 			{
 				unsigned int base = stat_ipow(10, len);
@@ -153,7 +153,7 @@ void print_type(type t,char *description,int len)
 		case SLONGFRACT:
 		{
 	                tmp = gSpace;
-        	        INDENTATION1(tmp)
+        	        INDENTATION(tmp)
 		  	if (len != 0)
 			{
 				unsigned int base = stat_ipow(10, len);
@@ -171,7 +171,7 @@ void print_type(type t,char *description,int len)
 		case HUGE:
 		{
 	                tmp = gSpace;
-        	        INDENTATION1(tmp)
+        	        INDENTATION(tmp)
 			printf("%20lli : %s\n", *((signed long long *)goutData), description);
 			goutData += sizeof(signed long long);
 		}
@@ -204,12 +204,12 @@ void help_print(stat_id c,bool original)
 		{
 			tmp = gSpace;
 				if( gStat[c].sts[i].c == NETWORK_BITFIELD ) {
-					INDENTATION1(tmp)
+					INDENTATION(tmp)
 					printf("%20s : %s\n","",gStat[c].sts[i].description);
 				}
 				else {
 					if ( ( gStat[c].sts[i].c != PHY_ENUM ) && ( gStat[c].sts[i].c != VENDOR_ENUM ) ) {
-						INDENTATION1(tmp)
+						INDENTATION(tmp)
 						PRINT_DESCRIPTION(gStat[c].sts[i])
 					}
 				}
@@ -240,7 +240,7 @@ void help_print(stat_id c,bool original)
 		if( !gEnum )
 		{
 			int tmp = gSpace;
-			INDENTATION1(tmp); 
+			INDENTATION(tmp); 
 			printf("%20s : %s\n","Unknown value",ptr);
 		}
 		else {

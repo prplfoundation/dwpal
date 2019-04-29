@@ -35,15 +35,6 @@
 #endif
 #endif
 
-#if defined YOCTO_LOGGING
-#include "help_logging.h"
-#define PRINT_DEBUG(...)  LOGF_LOG_DEBUG(__VA_ARGS__)
-#define PRINT_ERROR(...)  LOGF_LOG_ERROR(__VA_ARGS__)
-#else
-#define PRINT_DEBUG(...)  printf(__VA_ARGS__)
-#define PRINT_ERROR(...)  printf(__VA_ARGS__)
-#endif
-
 #define NUM_OF_LISTENING_EVENTS 16
 extern int check_stats_cmd(int num_arg,char *cmd[]);
 DWPAL_Ret nlCliOneShotEventCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data);
