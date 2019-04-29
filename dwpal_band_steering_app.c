@@ -21,7 +21,25 @@
 #endif
 #include "dwpal.h"
 #include "dwpal_ext.h"
+#include "dwpal_log.h"	//Logging
 #include <pthread.h>
+
+#if defined YOCTO
+//Logging Macros
+#ifndef LOG_LEVEL
+unsigned int LOGLEVEL = SYS_LOG_DEBUG + 1;
+#else
+unsigned int LOGLEVEL = LOG_LEVEL + 1;
+#endif
+
+#ifndef LOG_TYPE
+unsigned int LOGTYPE = SYS_LOG_TYPE_CONSOLE | SYS_LOG_TYPE_FILE;
+#else
+unsigned int LOGTYPE = LOG_TYPE;
+#endif
+
+unsigned int LOGPROFILE;
+#endif	//End YOCTO
 
 #define MAC_STRING_LEN 17
 #define IFNAME_STRING_LENGTH 16

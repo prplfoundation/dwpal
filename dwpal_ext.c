@@ -12,14 +12,14 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#include "dwpal_ext.h"
-#include "dwpal.h"
 #if defined YOCTO
 #include <puma_safe_libc.h>
 #else
 #include "safe_str_lib.h"
 #endif
 
+#include "dwpal_ext.h"
+#include "dwpal_log.h"	//Logging
 
 #define NUM_OF_SUPPORTED_VAPS 32
 

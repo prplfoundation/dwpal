@@ -7,7 +7,7 @@ VERSION := $(MAJOR).$(MINOR)
 
 opt_no_flags := -Werror -Wcast-qual
 
-LOG_CFLAGS := -DPACKAGE_ID=\"FAPIWLAN\" -DLOGGING_ID="fapiwlan" -DLOG_LEVEL=7 -DLOG_TYPE=1
+LOG_CFLAGS := -DPACKAGE_ID=\"DWPALWLAN\" -DLOGGING_ID="dwpal" -DLOG_LEVEL=7 -DLOG_TYPE=1
 EXTRALDFLAGS := -L./ -ldwpal -lcurses -lreadline -lrt -lpthread
 EXTRACFLAGS := -I./include -DCONFIG_CTRL_IFACE -DCONFIG_CTRL_IFACE_UNIX -DYOCTO
 
