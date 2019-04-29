@@ -281,12 +281,50 @@ int dump_sta_list(char *outData,unsigned int outLen)
   fprintf(stdout, "\n");
 }
 
+
+void print_cmd_help( char *cmd )
+{
+	int found = 0;
+
+	if( !cmd )
+		printf("\n\t Help for supported statistics are:");
+
+	for( int i=0; i < sizeof(gCmd)/sizeof(gCmd[0]); i++ )
+	{
+		if( cmd )
+		{
+			if ( !strncmp(cmd,gCmd[i].cmd,strlen(gCmd[i].cmd)) )
+			{
+				printf("\n\t Help for %s statistics is:",cmd);
+				printf("\n\t %s",gCmd[i].usage);
+				found = 1;
+			}
+		}
+		else
+			printf("\n\t %s",gCmd[i].usage);
+	}
+
+	if( !cmd || found )
+	{
+		printf("\n\t Note:\n\t\t INTERFACENAME can be wlan0,wlan0.0,wlan2,wlan2.0...");
+		printf("\n\t\t MACADDR corresponds to macaddr of connected station\n");
+	}
+}
+
 int check_stats_cmd(int num_arg, char *cmd[])
 {
 	char outData[MAX_NL_REPLY] = { '\0' };
 	unsigned int outLen,i;
 	char Vendordata[6] = {'\0'};
 	int VendorDataLen = 0;
+
+	if( !strncmp(cmd[0],"help",sizeof("help")-1) ) {
+		if( num_arg > 1 )
+			print_cmd_help(cmd[1]);
+		else
+			print_cmd_help(NULL);
+		return 0;
+	}
 
 	if( num_arg <  2) {
 		PRINT_ERROR(" Need atleaset 2 arguments ie interfacename and command\n");
