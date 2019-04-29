@@ -54,6 +54,10 @@
 #define PRINT_ERROR(...)  printf(__VA_ARGS__)
 #endif
 
+#define console_printf(...)  \
+{                            \
+	/*printf(__VA_ARGS__)*/ \
+}				 
 
 typedef enum
 {
