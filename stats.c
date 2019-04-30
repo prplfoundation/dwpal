@@ -230,10 +230,10 @@ void help_print(stat_id c,bool original)
 		switch ( gStat[c].sts[i].c )
 		{
 			case VENDOR_ENUM:
-				snprintf_s(ptr,sizeof("Vendor"),"Vendor");
+				snprintf(ptr,sizeof("Vendor"),"Vendor");
 				break;
 			case PHY_ENUM:
-				snprintf_s(ptr,sizeof("Network (Phy) Mode"),"Network (Phy) Mode");
+				snprintf(ptr,sizeof("Network (Phy) Mode"),"Network (Phy) Mode");
 				break;
 			default:
 				;
