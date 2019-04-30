@@ -16,11 +16,11 @@ int gEnum = 0; // to find enum stat
 
 void convertMac(char *sMac, unsigned char *cMac)
 {
-        int i;
-        for(i = 0; i < 6; i++) {
-                cMac[i] = (unsigned char) strtoul(sMac, &sMac, 16);
-                sMac++;
-        }
+	int i;
+	for(i = 0; i < 6; i++) {
+		cMac[i] = (unsigned char) strtoul(sMac, &sMac, 16);
+		sMac++;
+	}
 }
 
 static unsigned int stat_ipow(unsigned int base, unsigned int power)
@@ -38,7 +38,7 @@ static unsigned int stat_ipow(unsigned int base, unsigned int power)
 
 void print_type(type t,char *description,int len)
 {
-	int tmp = gSpace;
+	int i, tmp = gSpace;
 	if( t != BITFIELD  && t != ENUM )
 		INDENTATION(tmp)
 	switch (t)
@@ -67,7 +67,7 @@ void print_type(type t,char *description,int len)
 		case SBYTEARRAY:
 		{
 			printf("%20s : %s\n","",description);
-			for(int i = 0; i < len; i++)
+			for(i = 0; i < len; i++)
 			{
 				tmp = gSpace;
 				INDENTATION(tmp)
@@ -80,7 +80,7 @@ void print_type(type t,char *description,int len)
 		case SLONGARRAY:
 		{
 			printf("%20s : %s\n","",description);
-			for(int i = 0; i < len; i++)
+			for(i = 0; i < len; i++)
 			{
 				tmp = gSpace;
 				INDENTATION(tmp)
