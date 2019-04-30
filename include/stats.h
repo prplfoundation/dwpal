@@ -2,6 +2,7 @@
 #define __STATS_H__
 
 #include "common.h"
+#include "vendor_cmds_copy.h"
 
 #define HAL_NUM_OF_ANTS             (4)
 #define NL_ATTR_HDR 4
@@ -39,19 +40,6 @@ typedef struct peer_list{
 }peer_list_t;
 
 typedef enum {
-	LTQ_NL80211_VENDOR_SUBCMD_GET_PEER_LIST = 317,
-	LTQ_NL80211_VENDOR_SUBCMD_GET_PEER_FLOW_STATUS = 318,
-	LTQ_NL80211_VENDOR_SUBCMD_GET_PEER_CAPABILITIES = 319,
-	LTQ_NL80211_VENDOR_SUBCMD_GET_PEER_RATE_INFO = 320,
-	LTQ_NL80211_VENDOR_SUBCMD_GET_RECOVERY_STATS = 321,
-	LTQ_NL80211_VENDOR_SUBCMD_GET_HW_FLOW_STATUS = 322,
-	LTQ_NL80211_VENDOR_SUBCMD_GET_TR181_WLAN_STATS = 323,
-	LTQ_NL80211_VENDOR_SUBCMD_GET_TR181_HW_STATS = 324,
-	LTQ_NL80211_VENDOR_SUBCMD_GET_TR181_PEER_STATS = 325
-}cmd_id;
-
-
-typedef enum {
 	PEER_FLOW_STATS=0,
 	PEER_TRAFFIC_STAT,
 	RETRANS_STAT,
@@ -76,7 +64,7 @@ typedef enum {
 typedef struct 
 {
 	char cmd[MAX_COMMAND_LEN]; //command name
-	cmd_id id; //NL command
+	enum ltq_nl80211_vendor_subcmds id; //NL command
 	int num_arg; // number of arguments expected
 	char usage[MAX_USAGE_LEN];
 	stat_id c; //enum for each cmd
