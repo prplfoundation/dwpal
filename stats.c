@@ -12,7 +12,7 @@
 void *goutData = NULL; // for traversing NL data
 int gSpace = 0; // for indentation
 int gEnum = 0; // to find enum stat
-
+#define MAX_STR_SIZE 32
 
 void convertMac(char *sMac, unsigned char *cMac)
 {
@@ -229,10 +229,10 @@ void help_print(stat_id c,bool original)
 		switch ( gStat[c].sts[i].c )
 		{
 			case VENDOR_ENUM:
-				snprintf(ptr,sizeof("Vendor"),"Vendor");
+				snprintf_s(ptr,sizeof("Vendor"),"Vendor");
 				break;
 			case PHY_ENUM:
-				snprintf(ptr,sizeof("Network (Phy) Mode"),"Network (Phy) Mode");
+				snprintf_s(ptr,sizeof("Network (Phy) Mode"),"Network (Phy) Mode");
 				break;
 			default:
 				;
@@ -251,7 +251,7 @@ void help_print(stat_id c,bool original)
 	
 }
 
-int dump_sta_list(char *outData,unsigned int outLen)
+void dump_sta_list(char *outData,unsigned int outLen)
 {
   unsigned int sta_number = ( outLen - NL_ATTR_HDR )/sizeof(peer_list_t);
   peer_list_t *sta = (peer_list_t *)&outData[NL_ATTR_HDR]; 
@@ -293,7 +293,7 @@ void print_cmd_help( char *cmd )
 	{
 		if( cmd )
 		{
-			if ( !strncmp(cmd,gCmd[i].cmd,strlen(gCmd[i].cmd)) )
+			if ( !strncmp(cmd,gCmd[i].cmd,strnlen_s(gCmd[i].cmd,MAX_STR_SIZE)) )
 			{
 				printf("\n\t Help for %s statistics is:",cmd);
 				printf("\n\t %s",gCmd[i].usage);
@@ -333,7 +333,7 @@ int check_stats_cmd(int num_arg, char *cmd[])
 	
 	for( i = 0; i < sizeof(gCmd)/sizeof(gCmd[0]); i++ ) 
 	{
-		if( !strncmp(cmd[1], gCmd[i].cmd, strlen(gCmd[i].cmd)) ) {
+		if( !strncmp(cmd[1], gCmd[i].cmd, strnlen_s(gCmd[i].cmd,MAX_STR_SIZE)) ) {
 			if( num_arg -1 != gCmd[i].num_arg ) {
 				printf("%s\n",(char *)&gCmd[i].usage);
 				return -1;
@@ -366,6 +366,7 @@ int check_stats_cmd(int num_arg, char *cmd[])
 			break;
 		}
 	}
+	goutData = NULL;
 	return 0;
 }
 		
