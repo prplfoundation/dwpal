@@ -181,8 +181,9 @@ void print_type(type t,char *description,int len)
 
 static int NlEventCallback(char* ifname, int event, int subevent, size_t len, unsigned char *data)
 {
-        for(int i=0;i<len;i++)
-                printf("%x ",data[i]);
+	int i;
+	for(i=0;i<len;i++)
+		printf("%x ",data[i]);
 	return 0;
 }
 
@@ -284,12 +285,12 @@ void dump_sta_list(char *outData,unsigned int outLen)
 
 void print_cmd_help( char *cmd )
 {
-	int found = 0;
+	int i, found = 0;
 
 	if( !cmd )
 		printf("\n\t Help for supported statistics are:");
 
-	for( int i=0; i < sizeof(gCmd)/sizeof(gCmd[0]); i++ )
+	for( i=0; i < sizeof(gCmd)/sizeof(gCmd[0]); i++ )
 	{
 		if( cmd )
 		{
