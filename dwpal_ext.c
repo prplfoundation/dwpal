@@ -20,15 +20,6 @@
 #include "safe_str_lib.h"
 #endif
 
-#if defined YOCTO_LOGGING
-#include "help_logging.h"
-#define PRINT_DEBUG(...)  LOGF_LOG_DEBUG(__VA_ARGS__)
-#define PRINT_ERROR(...)  LOGF_LOG_ERROR(__VA_ARGS__)
-#else
-#define PRINT_DEBUG(...)  printf(__VA_ARGS__)
-#define PRINT_ERROR(...)  printf(__VA_ARGS__)
-#endif
-
 
 #define NUM_OF_SUPPORTED_VAPS 32
 
@@ -91,7 +82,7 @@ static DWPAL_Ret interfaceIndexCreate(char *interfaceType, char *VAPName, int *i
 
 	if (interfaceIndexGet(interfaceType, VAPName, idx) == DWPAL_SUCCESS)
 	{
-		PRINT_ERROR("%s; the interface (interfaceType= '%s', VAPName= '%s') is already exist ==> Abort!\n",
+		console_printf("%s; the interface (interfaceType= '%s', VAPName= '%s') is already exist ==> Abort!\n",
 		            __FUNCTION__, interfaceType, VAPName);
 		return DWPAL_FAILURE;
 	}
@@ -104,7 +95,7 @@ static DWPAL_Ret interfaceIndexCreate(char *interfaceType, char *VAPName, int *i
 			dwpalService[i] = (DwpalService *)malloc(sizeof(DwpalService));
 			if (dwpalService[i] == NULL)
 			{
-				PRINT_ERROR("%s; malloc failed ==> Abort!\n", __FUNCTION__);
+				console_printf("%s; malloc failed ==> Abort!\n", __FUNCTION__);
 				return DWPAL_FAILURE;
 			}
 
@@ -116,7 +107,7 @@ static DWPAL_Ret interfaceIndexCreate(char *interfaceType, char *VAPName, int *i
 		}
 	}
 
-	PRINT_ERROR("%s; number of interfaces (%d) reached its limit ==> Abort!\n", __FUNCTION__, i);
+	console_printf("%s; number of interfaces (%d) reached its limit ==> Abort!\n", __FUNCTION__, i);
 
 	return DWPAL_FAILURE;
 }
@@ -145,7 +136,7 @@ static void interfaceExistCheckAndRecover(void)
 	int  i, numOfServices = sizeof(dwpalService) / sizeof(DwpalService *);
 	bool isExist = false;
 
-	//PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	//console_printf("%s Entry\n", __FUNCTION__);
 
 	for (i=0; i < numOfServices; i++)
 	{
@@ -162,13 +153,13 @@ static void interfaceExistCheckAndRecover(void)
 				/* check if interface that should exist, still exists */
 				if (dwpal_hostap_is_interface_exist(context[i], &isExist /*OUT*/) == DWPAL_FAILURE)
 				{
-					PRINT_ERROR("%s; dwpal_hostap_is_interface_exist for VAPName= '%s' error ==> cont...\n", __FUNCTION__, dwpalService[i]->VAPName);
+					console_printf("%s; dwpal_hostap_is_interface_exist for VAPName= '%s' error ==> cont...\n", __FUNCTION__, dwpalService[i]->VAPName);
 					continue;
 				}
 
 				if (isExist == false)
 				{  /* interface that should exist, does NOT exist */
-					PRINT_ERROR("%s; VAPName= '%s' interface needs to be recovered\n", __FUNCTION__, dwpalService[i]->VAPName);
+					console_printf("%s; VAPName= '%s' interface needs to be recovered\n", __FUNCTION__, dwpalService[i]->VAPName);
 					dwpalService[i]->isConnectionEstablishNeeded = true;
 					dwpalService[i]->fd = -1;
 
@@ -179,16 +170,16 @@ static void interfaceExistCheckAndRecover(void)
 			/* In case of recovery needed, try recover; in case of interface init, try to establish the connection */
 			if (dwpalService[i]->isConnectionEstablishNeeded == true)
 			{  /* try recovering the interface */
-				//PRINT_DEBUG("%s; try recover - VAPName= '%s'\n", __FUNCTION__, dwpalService[i]->VAPName);
+				//console_printf("%s; try recover - VAPName= '%s'\n", __FUNCTION__, dwpalService[i]->VAPName);
 				if (dwpal_hostap_interface_attach(&context[i] /*OUT*/, dwpalService[i]->VAPName, NULL /*use one-way interface*/) == DWPAL_SUCCESS)
 				{
-					PRINT_DEBUG("%s; VAPName= '%s' interface recovered successfully!\n", __FUNCTION__, dwpalService[i]->VAPName);
+					console_printf("%s; VAPName= '%s' interface recovered successfully!\n", __FUNCTION__, dwpalService[i]->VAPName);
 					dwpalService[i]->isConnectionEstablishNeeded = false;
 					dwpalService[i]->hostapEventCallback(dwpalService[i]->VAPName, "INTERFACE_RECONNECTED_OK", NULL, 0);
 				}
 				else
 				{
-					//PRINT_ERROR("%s; dwpal_hostap_interface_attach (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalService[i]->VAPName);
+					//console_printf("%s; dwpal_hostap_interface_attach (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalService[i]->VAPName);
 				}
 			}
 		}
@@ -208,7 +199,7 @@ static void *listenerThreadStart(void *temp)
 
 	(void)temp;
 
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
 	/* Receive the msg */
 	while (true)
@@ -228,7 +219,7 @@ static void *listenerThreadStart(void *temp)
 			{
 				if (dwpal_hostap_event_fd_get(context[i], &dwpalService[i]->fd) == DWPAL_FAILURE)
 				{
-					/*PRINT_ERROR("%s; dwpal_hostap_event_fd_get returned error ==> cont. (VAPName= '%s')\n",
+					/*console_printf("%s; dwpal_hostap_event_fd_get returned error ==> cont. (VAPName= '%s')\n",
 					       __FUNCTION__, dwpalService[i]->VAPName);*/
 					continue;
 				}
@@ -243,7 +234,7 @@ static void *listenerThreadStart(void *temp)
 			{
 				if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i]->fd, &dwpalService[i]->fdCmdGet) == DWPAL_FAILURE)
 				{
-					/*PRINT_ERROR("%s; dwpal_driver_nl_fd_get returned error ==> cont. (VAPName= '%s')\n",
+					/*console_printf("%s; dwpal_driver_nl_fd_get returned error ==> cont. (VAPName= '%s')\n",
 					       __FUNCTION__, dwpalService[i].VAPName);*/
 					continue;
 				}
@@ -262,7 +253,7 @@ static void *listenerThreadStart(void *temp)
 			}
 		}
 
-		//PRINT_DEBUG("%s; highestValFD= %d\n", __FUNCTION__, highestValFD);
+		//console_printf("%s; highestValFD= %d\n", __FUNCTION__, highestValFD);
 
 		/* Interval of time in which the select() will be released */
 		tv.tv_sec = 1;
@@ -274,7 +265,7 @@ static void *listenerThreadStart(void *temp)
 		ret = select(highestValFD + 1, &rfds, NULL, NULL, &tv);
 		if (ret < 0)
 		{
-			PRINT_DEBUG("%s; select() return value= %d ==> cont...; errno= %d ('%s')\n", __FUNCTION__, ret, errno, strerror(errno));
+			console_printf("%s; select() return value= %d ==> cont...; errno= %d ('%s')\n", __FUNCTION__, ret, errno, strerror(errno));
 			continue;
 		}
 
@@ -292,7 +283,7 @@ static void *listenerThreadStart(void *temp)
 				{
 					if (FD_ISSET(dwpalService[i]->fd, &rfds))
 					{
-						/*PRINT_DEBUG("%s; event received; interfaceType= '%s', VAPName= '%s'\n",
+						/*console_printf("%s; event received; interfaceType= '%s', VAPName= '%s'\n",
 						       __FUNCTION__, dwpalService[i]->interfaceType, dwpalService[i]->VAPName);*/
 
 						isTimerExpired = false;
@@ -300,7 +291,7 @@ static void *listenerThreadStart(void *temp)
 						msg = (char *)malloc((size_t)(HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char)));
 						if (msg == NULL)
 						{
-							PRINT_ERROR("%s; invalid input ('msg') parameter ==> cont...\n", __FUNCTION__);
+							console_printf("%s; invalid input ('msg') parameter ==> cont...\n", __FUNCTION__);
 							continue;
 						}
 
@@ -310,18 +301,18 @@ static void *listenerThreadStart(void *temp)
 
 						if (dwpal_hostap_event_get(context[i], msg /*OUT*/, &msgLen /*IN/OUT*/, opCode /*OUT*/) == DWPAL_FAILURE)
 						{
-							PRINT_ERROR("%s; dwpal_hostap_event_get ERROR; VAPName= '%s', msgLen= %d\n",
+							console_printf("%s; dwpal_hostap_event_get ERROR; VAPName= '%s', msgLen= %d\n",
 							       __FUNCTION__, dwpalService[i]->VAPName, msgLen);
 						}
 						else
 						{
-							//PRINT_DEBUG("%s; msgLen= %d, msg= '%s'\n", __FUNCTION__, msgLen, msg);
+							//console_printf("%s; msgLen= %d, msg= '%s'\n", __FUNCTION__, msgLen, msg);
 //strcpy(msg, "<3>AP-STA-CONNECTED wlan0 24:77:03:80:5d:90 SignalStrength=-49 SupportedRates=2 4 11 22 12 18 24 36 48 72 96 108 HT_CAP=107E HT_MCS=FF FF FF 00 00 00 00 00 00 00 C2 01 01 00 00 00 VHT_CAP=03807122 VHT_MCS=FFFA 0000 FFFA 0000 btm_supported=1 nr_enabled=0 non_pref_chan=81:200:1:7 non_pref_chan=81:100:2:9 non_pref_chan=81:200:1:7 non_pref_chan=81:100:2:5 cell_capa=1 assoc_req=00003A01000A1B0E04606C722002E833000A1B0E0460C04331060200000E746573745F737369645F69736172010882848B960C12182432043048606C30140100000FAC040100000FAC040100000FAC020000DD070050F2020001002D1AEF1903FFFFFF00000000000000000000000000000018040109007F080000000000000040BF0CB059C103EAFF1C02EAFF1C02C70122");
 //strcpy(msg, "<3>AP-STA-DISCONNECTED wlan0 14:d6:4d:ac:36:70");
 //strcpy(opCode, "AP-STA-CONNECTED");
 
 							msgStringLen = STRNLEN_S(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
-							//PRINT_DEBUG("%s; opCode= '%s', msg= '%s'\n", __FUNCTION__, opCode, msg);
+							//console_printf("%s; opCode= '%s', msg= '%s'\n", __FUNCTION__, opCode, msg);
 							if (strncmp(opCode, "", 1))
 							{
 								dwpalService[i]->hostapEventCallback(dwpalService[i]->VAPName, opCode, msg, msgStringLen);
@@ -336,26 +327,26 @@ static void *listenerThreadStart(void *temp)
 			{
 				if ( (dwpalService[i]->fd > 0) && (FD_ISSET(dwpalService[i]->fd, &rfds)) )
 				{
-					PRINT_DEBUG("%s; event received; interfaceType= '%s', VAPName= '%s'\n",
+					console_printf("%s; event received; interfaceType= '%s', VAPName= '%s'\n",
 						   __FUNCTION__, dwpalService[i]->interfaceType, dwpalService[i]->VAPName);
 
 					isTimerExpired = false;
 
 					if (dwpal_driver_nl_msg_get(context[i], DWPAL_NL_EVENT_GET, dwpalService[i]->nlEventCallback) == DWPAL_FAILURE)
 					{
-						PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR\n", __FUNCTION__);
+						console_printf("%s; dwpal_driver_nl_msg_get ERROR\n", __FUNCTION__);
 					}
 				}
 				else if ( (dwpalService[i]->fdCmdGet > 0) && (FD_ISSET(dwpalService[i]->fdCmdGet, &rfds)) )
 				{
-					PRINT_DEBUG("%s; 'get command' event received; interfaceType= '%s', VAPName= '%s'\n",
+					console_printf("%s; 'get command' event received; interfaceType= '%s', VAPName= '%s'\n",
 						   __FUNCTION__, dwpalService[i]->interfaceType, dwpalService[i]->VAPName);
 
 					isTimerExpired = false;
 
 					if (dwpal_driver_nl_msg_get(context[i], DWPAL_NL_CMD_GET, dwpalService[i]->nlCmdGetCallback) == DWPAL_FAILURE)
 					{
-						PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR\n", __FUNCTION__);
+						console_printf("%s; dwpal_driver_nl_msg_get ERROR\n", __FUNCTION__);
 					}
 				}
 			}
@@ -363,7 +354,7 @@ static void *listenerThreadStart(void *temp)
 
 		if (isTimerExpired)
 		{
-			//PRINT_DEBUG("%s; timer expired\n", __FUNCTION__);
+			//console_printf("%s; timer expired\n", __FUNCTION__);
 			interfaceExistCheckAndRecover();
 		}
 	}
@@ -380,32 +371,32 @@ static DWPAL_Ret listenerThreadCreate(pthread_t *thread_id)
 	size_t         stack_size = 4096;
 	//void           *res;
 
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
 	ret = pthread_attr_init(&attr);
 	if (ret != 0)
 	{
-		PRINT_ERROR("%s; pthread_attr_init ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+		console_printf("%s; pthread_attr_init ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 		return DWPAL_FAILURE;
 	}
 
 	ret = pthread_attr_setstacksize(&attr, stack_size);
 	if (ret == -1)
 	{
-		PRINT_ERROR("%s; pthread_attr_setstacksize ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+		console_printf("%s; pthread_attr_setstacksize ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 		dwpalRet = DWPAL_FAILURE;
 	}
 
 	if (dwpalRet == DWPAL_SUCCESS)
 	{
-		PRINT_DEBUG("%s; call pthread_create\n", __FUNCTION__);
+		console_printf("%s; call pthread_create\n", __FUNCTION__);
 		ret = pthread_create(thread_id, &attr, &listenerThreadStart, NULL /*can be used to send params*/);
 		if (ret != 0)
 		{
-			PRINT_ERROR("%s; pthread_create ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+			console_printf("%s; pthread_create ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 			dwpalRet = DWPAL_FAILURE;
 		}
-		PRINT_DEBUG("%s; return from call pthread_create, ret= %d\n", __FUNCTION__, ret);
+		console_printf("%s; return from call pthread_create, ret= %d\n", __FUNCTION__, ret);
 
 		if (dwpalRet == DWPAL_SUCCESS)
 		{
@@ -416,7 +407,7 @@ static DWPAL_Ret listenerThreadCreate(pthread_t *thread_id)
 			ret = pthread_join(*thread_id, &res);
 			if (ret != 0)
 			{
-				PRINT_ERROR("%s; pthread_join ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+				console_printf("%s; pthread_join ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 				dwpalRet = DWPAL_FAILURE;
 			}
 
@@ -429,7 +420,7 @@ static DWPAL_Ret listenerThreadCreate(pthread_t *thread_id)
 	ret = pthread_attr_destroy(&attr);
 	if (ret != 0)
 	{
-		PRINT_ERROR("%s; pthread_attr_destroy ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+		console_printf("%s; pthread_attr_destroy ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 		dwpalRet = DWPAL_FAILURE;
 	}
 
@@ -459,7 +450,7 @@ static DWPAL_Ret listenerThreadSet(DwpalThreadOperation threadOperation)
 			{
 				if ( (ret = pthread_cancel(thread_id)) != 0 )
 				{
-					PRINT_ERROR("%s; pthread_attr_destroy ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+					console_printf("%s; pthread_attr_destroy ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 					return DWPAL_FAILURE;
 				}
 
@@ -468,7 +459,7 @@ static DWPAL_Ret listenerThreadSet(DwpalThreadOperation threadOperation)
 			break;
 
 		default:
-			PRINT_ERROR("%s; threadOperation (%d) not supported ==> Abort!\n", __FUNCTION__, threadOperation);
+			console_printf("%s; threadOperation (%d) not supported ==> Abort!\n", __FUNCTION__, threadOperation);
 			return DWPAL_FAILURE;
 			break;
 	}
@@ -487,7 +478,7 @@ static DWPAL_Ret dwpal_command_get_ended_socket_wait(bool *isReceived)
 
 	if (dwpal_command_get_ended <= 0)
 	{
-		PRINT_ERROR("%s; dwpal_command_get_ended= %d ==> Abort!\n", __FUNCTION__, dwpal_command_get_ended);
+		console_printf("%s; dwpal_command_get_ended= %d ==> Abort!\n", __FUNCTION__, dwpal_command_get_ended);
 		return DWPAL_FAILURE;
 	}
 
@@ -503,18 +494,18 @@ static DWPAL_Ret dwpal_command_get_ended_socket_wait(bool *isReceived)
 		res = select(dwpal_command_get_ended + 1, &rfds, NULL, NULL, &tv);
 		if (res < 0)
 		{
-			PRINT_ERROR("%s; select() return value= %d ==> cont...; errno= %d ('%s') ==> expected behavior when 'Interrupted system call'\n", __FUNCTION__, res, errno, strerror(errno));
+			console_printf("%s; select() return value= %d ==> cont...; errno= %d ('%s') ==> expected behavior when 'Interrupted system call'\n", __FUNCTION__, res, errno, strerror(errno));
 			continue;
 		}
 
 		if (FD_ISSET(dwpal_command_get_ended, &rfds))
 		{  /* the select() was triggered due to the above daemon fd */
-			PRINT_DEBUG("%s; right event indication received ==> break\n", __FUNCTION__);
+			console_printf("%s; right event indication received ==> break\n", __FUNCTION__);
 			*isReceived = true;
 			break;
 		}
 
-		PRINT_DEBUG("%s; the right event indication was NOT received ==> break\n", __FUNCTION__);
+		console_printf("%s; the right event indication was NOT received ==> break\n", __FUNCTION__);
 		break;
 	}
 
@@ -529,11 +520,11 @@ static int fdDaemonSet(char *socketName, int *fd /* output param */)
 
 	if ((*fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
 	{
-		PRINT_ERROR("%s; create socket fail; socketName= '%s'; errno= %d ('%s')\n", __FUNCTION__, socketName, errno, strerror(errno));
+		console_printf("%s; create socket fail; socketName= '%s'; errno= %d ('%s')\n", __FUNCTION__, socketName, errno, strerror(errno));
 		return DWPAL_FAILURE;
     }
 
-	PRINT_DEBUG("%s; fd_daemon (socketName='%s') = %d\n", __FUNCTION__, socketName, *fd);
+	console_printf("%s; fd_daemon (socketName='%s') = %d\n", __FUNCTION__, socketName, *fd);
 
 	unlink(socketName);   /* in case it already exists */
 
@@ -546,11 +537,11 @@ static int fdDaemonSet(char *socketName, int *fd /* output param */)
     /* bind the name to the descriptor */
 	if (bind(*fd, (struct sockaddr *)&un, len) < 0)  // check if can use connect() instead...
 	{
-		PRINT_DEBUG("%s; bind() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
+		console_printf("%s; bind() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
 
 		if (close(*fd) == (-1))
 		{
-			PRINT_ERROR("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
+			console_printf("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
 		}
 
 		return DWPAL_FAILURE;
@@ -558,11 +549,11 @@ static int fdDaemonSet(char *socketName, int *fd /* output param */)
 
 	if (chmod(socketName, 0666) < 0)
 	{
-		PRINT_DEBUG("%s; FAIL to chmod '%s' to 0666\n", __FUNCTION__, socketName);
+		console_printf("%s; FAIL to chmod '%s' to 0666\n", __FUNCTION__, socketName);
 
 		if (close(*fd) == (-1))
 		{
-			PRINT_ERROR("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
+			console_printf("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
 		}
 
 		return DWPAL_FAILURE;
@@ -570,11 +561,11 @@ static int fdDaemonSet(char *socketName, int *fd /* output param */)
 
 	if (listen(*fd, 10 /*Q Length*/) < 0)
 	{ /* tell kernel we're a server */
-		PRINT_DEBUG("%s; listen fail\n", __FUNCTION__);
+		console_printf("%s; listen fail\n", __FUNCTION__);
 
 		if (close(*fd) == (-1))
 		{
-			PRINT_ERROR("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
+			console_printf("%s; close() fail; errno= %d ('%s')\n", __FUNCTION__, errno, strerror(errno));
 		}
 
 		return DWPAL_FAILURE;
@@ -593,13 +584,13 @@ static DWPAL_Ret dwpal_command_get_ended_socket_create(void)
 
 	if (dwpal_command_get_ended > 0)
 	{
-		PRINT_DEBUG("%s; dwpal_command_get_ended (%d) ==> cont...\n", __FUNCTION__, dwpal_command_get_ended);
+		console_printf("%s; dwpal_command_get_ended (%d) ==> cont...\n", __FUNCTION__, dwpal_command_get_ended);
 		return DWPAL_SUCCESS;
 	}
 
 	if (fdDaemonSet(socketName, &dwpal_command_get_ended /*output*/) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; ERROR; dwpal_command_get_ended= %d\n", __FUNCTION__, dwpal_command_get_ended);
+		console_printf("%s; ERROR; dwpal_command_get_ended= %d\n", __FUNCTION__, dwpal_command_get_ended);
 		return DWPAL_FAILURE;
 	}
 
@@ -609,7 +600,7 @@ static DWPAL_Ret dwpal_command_get_ended_socket_create(void)
 
 static DWPAL_Ret nlCmdGetCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data)
 {
-	PRINT_DEBUG("%s Entry; ifname= '%s', event= %d, subevent= %d (len= %d)\n", __FUNCTION__, ifname, event, subevent, len);
+	console_printf("%s Entry; ifname= '%s', event= %d, subevent= %d (len= %d)\n", __FUNCTION__, ifname, event, subevent, len);
 
 	memcpy_s((void *)getOutData, (rsize_t)len, (void *)data, (rsize_t)len);
 	*getOutLen = (size_t)len;
@@ -618,12 +609,12 @@ static DWPAL_Ret nlCmdGetCallback(char *ifname, int event, int subevent, size_t 
 		int i;
 		size_t lenToPrint = (*getOutLen <= 10)? *getOutLen : 10;
 
-		PRINT_DEBUG("%s; Output data from the 'get' function:\n", __FUNCTION__);
+		console_printf("%s; Output data from the 'get' function:\n", __FUNCTION__);
 		for (i=0; i < (int)lenToPrint; i++)
 		{
-			PRINT_DEBUG(" 0x%x", getOutData[i]);
+			console_printf(" 0x%x", getOutData[i]);
 		}
-		PRINT_DEBUG("\n");
+		console_printf("\n");
 	}
 
 	return DWPAL_SUCCESS;
@@ -642,21 +633,21 @@ static DWPAL_Ret nl_cmd_handle(char *ifname,
 	int    i, idx, ret;
 	bool   isReceived = false;
 
-	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x, vendorDataSize= %d, outLen= 0x%x, outData= 0x%x\n",
+	console_printf("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x, vendorDataSize= %d, outLen= 0x%x, outData= 0x%x\n",
 	            __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand, vendorDataSize, (unsigned int)outLen, (unsigned int)outData);
 
 	for (i=0; i < (int)vendorDataSize; i++)
 	{
-		PRINT_DEBUG("%s; vendorData[%d]= 0x%x\n", __FUNCTION__, i, vendorData[i]);
+		console_printf("%s; vendorData[%d]= 0x%x\n", __FUNCTION__, i, vendorData[i]);
 	}
 
 	if (interfaceIndexGet("Driver", "ALL", &idx) == DWPAL_INTERFACE_IS_DOWN)
 	{
-		PRINT_ERROR("%s; interfaceIndexGet returned ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; interfaceIndexGet returned ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_INTERFACE_IS_DOWN;
 	}
 
-	PRINT_DEBUG("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+	console_printf("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
 	if ( (outLen != NULL) && (outData != NULL) )
 	{
@@ -674,14 +665,14 @@ static DWPAL_Ret nl_cmd_handle(char *ifname,
 									   vendorDataSize);
 		if (ret == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
 		dwpal_command_get_ended_socket_wait(&isReceived);
 		if (isReceived == false)
 		{
-			PRINT_ERROR("%s; 'get command' (subCommand= 0x%x) was NOT received ==> Abort!\n", __FUNCTION__, subCommand);
+			console_printf("%s; 'get command' (subCommand= 0x%x) was NOT received ==> Abort!\n", __FUNCTION__, subCommand);
 			*outLen = 0;
 			return DWPAL_FAILURE;
 		}
@@ -709,7 +700,7 @@ static DWPAL_Ret nl_cmd_handle(char *ifname,
 
 DWPAL_Ret dwpal_ext_driver_nl_get(char *ifname, unsigned int nl80211Command, CmdIdType cmdIdType, unsigned int subCommand, unsigned char *vendorData, size_t vendorDataSize, size_t *outLen, unsigned char *outData)
 {
-	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand);
+	console_printf("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand);
 
 	return nl_cmd_handle(ifname, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, outLen, outData);
 }
@@ -717,7 +708,7 @@ DWPAL_Ret dwpal_ext_driver_nl_get(char *ifname, unsigned int nl80211Command, Cmd
 
 DWPAL_Ret dwpal_ext_driver_nl_cmd_send(char *ifname, unsigned int nl80211Command, CmdIdType cmdIdType, unsigned int subCommand, unsigned char *vendorData, size_t vendorDataSize)
 {
-	PRINT_DEBUG("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x, vendorDataSize= %d\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand, vendorDataSize);
+	console_printf("%s; ifname= '%s', nl80211Command= 0x%x, cmdIdType= %d, subCommand= 0x%x, vendorDataSize= %d\n", __FUNCTION__, ifname, nl80211Command, cmdIdType, subCommand, vendorDataSize);
 
 	return nl_cmd_handle(ifname, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, NULL, NULL);
 }
@@ -736,7 +727,7 @@ DWPAL_Ret dwpal_ext_driver_nl_detach(void)
 
 		if (close(dwpal_command_get_ended) == (-1))
 		{
-			PRINT_ERROR("%s; close() fail; dwpal_command_get_ended= %d; errno= %d ('%s')\n", __FUNCTION__, dwpal_command_get_ended, errno, strerror(errno));
+			console_printf("%s; close() fail; dwpal_command_get_ended= %d; errno= %d ('%s')\n", __FUNCTION__, dwpal_command_get_ended, errno, strerror(errno));
 		}
 
 		unlink(socketName);
@@ -745,11 +736,11 @@ DWPAL_Ret dwpal_ext_driver_nl_detach(void)
 
 	if (interfaceIndexGet("Driver", "ALL", &idx) == DWPAL_INTERFACE_IS_DOWN)
 	{
-		PRINT_ERROR("%s; interfaceIndexGet returned ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; interfaceIndexGet returned ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_INTERFACE_IS_DOWN;
 	}
 
-	PRINT_DEBUG("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+	console_printf("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
 	/* dealocate the interface */
 	free((void *)dwpalService[idx]);
@@ -760,7 +751,7 @@ DWPAL_Ret dwpal_ext_driver_nl_detach(void)
 
 	if (dwpal_driver_nl_detach(&context[idx]) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_driver_nl_detach returned ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_driver_nl_detach returned ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -780,21 +771,21 @@ DWPAL_Ret dwpal_ext_driver_nl_attach(DwpalExtNlEventCallback nlEventCallback)
 
 	if (nlEventCallback == NULL)
 	{
-		PRINT_ERROR("%s; nlEventCallback is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nlEventCallback is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (interfaceIndexCreate("Driver", "ALL", &idx) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; interfaceIndexCreate returned ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; interfaceIndexCreate returned ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; interfaceIndexCreate returned idx= %d\n", __FUNCTION__, idx);
+	console_printf("%s; interfaceIndexCreate returned idx= %d\n", __FUNCTION__, idx);
 
 	if (dwpal_command_get_ended_socket_create() == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_command_get_ended_socket_create returned ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_command_get_ended_socket_create returned ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -803,7 +794,7 @@ DWPAL_Ret dwpal_ext_driver_nl_attach(DwpalExtNlEventCallback nlEventCallback)
 
 	if (dwpal_driver_nl_attach(&context[idx] /*OUT*/) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_driver_nl_attach returned ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_driver_nl_attach returned ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -823,37 +814,37 @@ DWPAL_Ret dwpal_ext_hostap_cmd_send(char *VAPName, char *cmdHeader, FieldsToCmdP
 {
 	int idx;
 
-	PRINT_DEBUG("%s; VAPName= '%s', cmdHeader= '%s'\n", __FUNCTION__, VAPName, cmdHeader);
+	console_printf("%s; VAPName= '%s', cmdHeader= '%s'\n", __FUNCTION__, VAPName, cmdHeader);
 
 	if (VAPName == NULL)
 	{
-		PRINT_ERROR("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (interfaceIndexGet("hostap", VAPName, &idx) == DWPAL_INTERFACE_IS_DOWN)
 	{
-		PRINT_ERROR("%s; interfaceIndexGet (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
+		console_printf("%s; interfaceIndexGet (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 		return DWPAL_INTERFACE_IS_DOWN;
 	}
 
-	PRINT_DEBUG("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+	console_printf("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
 	if (context[idx] == NULL)
 	{
-		PRINT_ERROR("%s; context[%d] is NULL ==> Abort!\n", __FUNCTION__, idx);
+		console_printf("%s; context[%d] is NULL ==> Abort!\n", __FUNCTION__, idx);
 		return DWPAL_FAILURE;
 	}
 
 	if (dwpalService[idx]->isConnectionEstablishNeeded == true)
 	{
-		PRINT_ERROR("%s; interface is being reconnected, but still NOT ready ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; interface is being reconnected, but still NOT ready ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (dwpal_hostap_cmd_send(context[idx], cmdHeader, fieldsToCmdParse, reply, replyLen) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; '%s' command send error\n", __FUNCTION__, cmdHeader);
+		console_printf("%s; '%s' command send error\n", __FUNCTION__, cmdHeader);
 		return DWPAL_FAILURE;
 	}
 
@@ -867,17 +858,17 @@ DWPAL_Ret dwpal_ext_hostap_interface_detach(char *VAPName)
 
 	if (VAPName == NULL)
 	{
-		PRINT_ERROR("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (interfaceIndexGet("hostap", VAPName, &idx) == DWPAL_INTERFACE_IS_DOWN)
 	{
-		PRINT_ERROR("%s; interfaceIndexGet (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
+		console_printf("%s; interfaceIndexGet (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 		return DWPAL_INTERFACE_IS_DOWN;
 	}
 
-	PRINT_DEBUG("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
+	console_printf("%s; interfaceIndexGet returned idx= %d\n", __FUNCTION__, idx);
 
 	/* dealocate the interface */
 	free((void *)dwpalService[idx]);
@@ -885,7 +876,7 @@ DWPAL_Ret dwpal_ext_hostap_interface_detach(char *VAPName)
 
 	if (context[idx] == NULL)
 	{
-		PRINT_ERROR("%s; context[%d] is NULL ==> Abort!\n", __FUNCTION__, idx);
+		console_printf("%s; context[%d] is NULL ==> Abort!\n", __FUNCTION__, idx);
 		return DWPAL_FAILURE;
 	}
 
@@ -894,7 +885,7 @@ DWPAL_Ret dwpal_ext_hostap_interface_detach(char *VAPName)
 
 	if (dwpal_hostap_interface_detach(&context[idx]) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_hostap_interface_detach (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
+		console_printf("%s; dwpal_hostap_interface_detach (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 		return DWPAL_FAILURE;
 	}
 
@@ -914,30 +905,30 @@ DWPAL_Ret dwpal_ext_hostap_interface_attach(char *VAPName, DwpalExtHostapEventCa
 
 	if (VAPName == NULL)
 	{
-		PRINT_ERROR("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (hostapEventCallback == NULL)
 	{
-		PRINT_ERROR("%s; hostapEventCallback is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; hostapEventCallback is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (interfaceIndexCreate("hostap", VAPName, &idx) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; interfaceIndexCreate (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
+		console_printf("%s; interfaceIndexCreate (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; interfaceIndexCreate returned idx= %d\n", __FUNCTION__, idx);
+	console_printf("%s; interfaceIndexCreate returned idx= %d\n", __FUNCTION__, idx);
 
 	/* Cancel the listener thread, if it does exist */
 	listenerThreadSet(THREAD_CANCEL);
 
 	if (dwpal_hostap_interface_attach(&context[idx] /*OUT*/, VAPName, NULL /*use one-way interface*/) == DWPAL_FAILURE)
 	{
-		PRINT_DEBUG("%s; dwpal_hostap_interface_attach (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
+		console_printf("%s; dwpal_hostap_interface_attach (VAPName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 
 		/* in this case, continue and try to establish the connection later on */
 		dwpalService[idx]->isConnectionEstablishNeeded = true;

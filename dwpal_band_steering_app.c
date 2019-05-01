@@ -23,15 +23,6 @@
 #include "dwpal_ext.h"
 #include <pthread.h>
 
-#if defined YOCTO_LOGGING
-#include "help_logging.h"
-#define PRINT_DEBUG(...)  LOGF_LOG_DEBUG(__VA_ARGS__)
-#define PRINT_ERROR(...)  LOGF_LOG_ERROR(__VA_ARGS__)
-#else
-#define PRINT_DEBUG(...)  printf(__VA_ARGS__)
-#define PRINT_ERROR(...)  printf(__VA_ARGS__)
-#endif
-
 #define MAC_STRING_LEN 17
 #define IFNAME_STRING_LENGTH 16
 #define FIELD_VALUE_LENGTH 128
@@ -138,19 +129,19 @@ static DWPAL_Ret dwpal_wlan_sta_allow(char *VAPName, char *MACAddress)
 
     if (ret == DWPAL_FAILURE)
     {
-        PRINT_ERROR("%s; STA_ALLOW command send error\n", __FUNCTION__);
+        console_printf("%s; STA_ALLOW command send error\n", __FUNCTION__);
     }
     else
     {
-        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+        console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
         if (replyLen >= 2 && !strncmp(reply, "OK", strnlen_s("OK", RSIZE_MAX_STR)))
         {
-            PRINT_DEBUG("%s; Sucessfully Allowed %s on %s\n", __FUNCTION__, MACAddress, VAPName);
+            console_printf("%s; Sucessfully Allowed %s on %s\n", __FUNCTION__, MACAddress, VAPName);
         }
         else
         {
-            PRINT_ERROR("%s; STA_ALLOW %s command returned FAIL!\n", __FUNCTION__, MACAddress);
+            console_printf("%s; STA_ALLOW %s command returned FAIL!\n", __FUNCTION__, MACAddress);
             free((void *)reply);
             return DWPAL_FAILURE;
         }
@@ -175,21 +166,21 @@ static DWPAL_Ret dwpal_wlan_bss_transition_management_req(char *VAPName, char *M
 
     if (ret == DWPAL_FAILURE)
     {
-        PRINT_ERROR("%s; BSS_TM_REQ command send error\n", __FUNCTION__);
+        console_printf("%s; BSS_TM_REQ command send error\n", __FUNCTION__);
     }
     else
     {
-        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+        console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		if (replyLen >= 4 && !strncmp(reply, "FAIL", strnlen_s("FAIL", RSIZE_MAX_STR)))
         {
-			PRINT_ERROR("%s; BSS_TM_REQ %s command returned FAIL!\n", __FUNCTION__, MACAddress);
+			console_printf("%s; BSS_TM_REQ %s command returned FAIL!\n", __FUNCTION__, MACAddress);
 			free((void *)reply);
             return DWPAL_FAILURE;
 		}
         else
         {
-            PRINT_DEBUG("%s; Sucessfully made a tm request for %s\n", __FUNCTION__, MACAddress);
+            console_printf("%s; Sucessfully made a tm request for %s\n", __FUNCTION__, MACAddress);
         }
     }
 
@@ -211,19 +202,19 @@ static DWPAL_Ret dwpal_wlan_sta_deny(char *VAPName, char *MACAddress)
 
     if (ret == DWPAL_FAILURE)
     {
-        PRINT_ERROR("%s; DENY_MAC command send error\n", __FUNCTION__);
+        console_printf("%s; DENY_MAC command send error\n", __FUNCTION__);
     }
     else
     {
-        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+        console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
         if (replyLen >= 2 && !strncmp(reply, "OK", strnlen_s("OK", RSIZE_MAX_STR)))
         {
-            PRINT_DEBUG("%s; Sucessfully Blacklisted %s on %s\n", __FUNCTION__, MACAddress, VAPName);
+            console_printf("%s; Sucessfully Blacklisted %s on %s\n", __FUNCTION__, MACAddress, VAPName);
         }
         else
         {
-            PRINT_ERROR("%s; DENY_MAC %s command returned FAIL!\n", __FUNCTION__, MACAddress);
+            console_printf("%s; DENY_MAC %s command returned FAIL!\n", __FUNCTION__, MACAddress);
             free((void *)reply);
             return DWPAL_FAILURE;
         }
@@ -244,7 +235,7 @@ static DWPAL_Ret dwpal_wlan_sta_measurement_get(char *VAPName, char *MACAddress,
 
 	if (reply == NULL)
 	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -254,20 +245,20 @@ static DWPAL_Ret dwpal_wlan_sta_measurement_get(char *VAPName, char *MACAddress,
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; GET_STA_MEASUREMENTS command send error\n", __FUNCTION__);
+		console_printf("%s; GET_STA_MEASUREMENTS command send error\n", __FUNCTION__);
 	}
 	else
 	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+		console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 			free((void *)reply);
 			return DWPAL_FAILURE;
 		}
 
-		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+		console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 	}
 
 	free((void *)reply);
@@ -285,7 +276,7 @@ static DWPAL_Ret dwpal_wlan_vap_measurements_get(char *VAPName, FieldsToParse fi
 
 	if (reply == NULL)
 	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -295,20 +286,20 @@ static DWPAL_Ret dwpal_wlan_vap_measurements_get(char *VAPName, FieldsToParse fi
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; GET_VAP_MEASUREMENTS command send error\n", __FUNCTION__);
+		console_printf("%s; GET_VAP_MEASUREMENTS command send error\n", __FUNCTION__);
 	}
 	else
 	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+		console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 			free((void *)reply);
 			return DWPAL_FAILURE;
 		}
 
-		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+		console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 	}
 
 	free((void *)reply);
@@ -325,7 +316,7 @@ static DWPAL_Ret dwpal_wlan_radio_info_get(char *VAPName, FieldsToParse fieldsTo
 
 	if (reply == NULL)
 	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -334,20 +325,20 @@ static DWPAL_Ret dwpal_wlan_radio_info_get(char *VAPName, FieldsToParse fieldsTo
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; GET_RADIO_INFO command send error\n", __FUNCTION__);
+		console_printf("%s; GET_RADIO_INFO command send error\n", __FUNCTION__);
 	}
 	else
 	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+		console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 			free((void *)reply);
 			return DWPAL_FAILURE;
 		}
 
-		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+		console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 	}
 
 	free((void *)reply);
@@ -368,19 +359,19 @@ static DWPAL_Ret dwpal_wlan_sta_disassociate(char *VAPName, char *MACAddress)
 
     if (ret == DWPAL_FAILURE)
     {
-        PRINT_ERROR("%s; DISASSOCIATE command send error\n", __FUNCTION__);
+        console_printf("%s; DISASSOCIATE command send error\n", __FUNCTION__);
     }
     else
     {
-        PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+        console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
         if (replyLen >= 2 && !strncmp(reply, "OK", strnlen_s("OK", RSIZE_MAX_STR)))
         {
-            PRINT_DEBUG("%s; Sucessfully disconnected %s\n", __FUNCTION__, MACAddress);
+            console_printf("%s; Sucessfully disconnected %s\n", __FUNCTION__, MACAddress);
         }
         else
         {
-            PRINT_ERROR("%s; DISASSOCIATE %s command returned FAIL!\n", __FUNCTION__, MACAddress);
+            console_printf("%s; DISASSOCIATE %s command returned FAIL!\n", __FUNCTION__, MACAddress);
             free((void *)reply);
             return DWPAL_FAILURE;
         }
@@ -404,25 +395,25 @@ static void stationsInfoListPrint(void)
 
 	while (stationsInfo != NULL)
 	{
-		PRINT_DEBUG("=====================================================\n");
-		PRINT_DEBUG("MACAddress= '%s'\n", stationsInfo->MACAddress);
-		PRINT_DEBUG("-----------------------------------------------------\n");
-		PRINT_DEBUG("connectedTo= '%s'\n", stationsInfo->connectedTo);
-		PRINT_DEBUG("connectionTime= %d\n", stationsInfo->connectionTime);
-		PRINT_DEBUG("is_5G_supported= %d\n", stationsInfo->is_5G_supported);
-		PRINT_DEBUG("ifnameCheckIfConnected= '%s'\n", stationsInfo->ifnameCheckIfConnected);
-		PRINT_DEBUG("numOfTicks= %d\n", stationsInfo->numOfTicks);
-		PRINT_DEBUG("btm_supported= %d\n", stationsInfo->btm_supported);
-		PRINT_DEBUG("isBandSteeringPossible= %d\n", stationsInfo->isBandSteeringPossible);
-		PRINT_DEBUG("nextStation= 0x%x\n", (unsigned int)stationsInfo->nextStation);
-		PRINT_DEBUG("-----------------------------------------------------\n");
+		console_printf("=====================================================\n");
+		console_printf("MACAddress= '%s'\n", stationsInfo->MACAddress);
+		console_printf("-----------------------------------------------------\n");
+		console_printf("connectedTo= '%s'\n", stationsInfo->connectedTo);
+		console_printf("connectionTime= %d\n", stationsInfo->connectionTime);
+		console_printf("is_5G_supported= %d\n", stationsInfo->is_5G_supported);
+		console_printf("ifnameCheckIfConnected= '%s'\n", stationsInfo->ifnameCheckIfConnected);
+		console_printf("numOfTicks= %d\n", stationsInfo->numOfTicks);
+		console_printf("btm_supported= %d\n", stationsInfo->btm_supported);
+		console_printf("isBandSteeringPossible= %d\n", stationsInfo->isBandSteeringPossible);
+		console_printf("nextStation= 0x%x\n", (unsigned int)stationsInfo->nextStation);
+		console_printf("-----------------------------------------------------\n");
 
 		stationsInfo = stationsInfo->nextStation;
 	}
 
 	if (isPrintEmptyLine)
 	{
-		PRINT_DEBUG("\n");
+		console_printf("\n");
 	}
 }
 
@@ -431,14 +422,14 @@ static void stationsInfoListClear(void)
 {
 	StationsInfo_t *stationsInfo = firstStationInfo, *stationsInfoToClear = NULL;
 
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
 	while (stationsInfo != NULL)
 	{
 		stationsInfoToClear = stationsInfo;
 		stationsInfo = stationsInfo->nextStation;
 
-		PRINT_DEBUG("%s; Clear Record; MACAddress= '%s'; stationsInfoToClear= 0x%x\n", __FUNCTION__, stationsInfo->MACAddress, (unsigned int)stationsInfoToClear);
+		console_printf("%s; Clear Record; MACAddress= '%s'; stationsInfoToClear= 0x%x\n", __FUNCTION__, stationsInfo->MACAddress, (unsigned int)stationsInfoToClear);
 		free((void *)stationsInfoToClear);
 	}
 
@@ -454,7 +445,7 @@ static StationsInfo_t *stationsInfoGet(char *MACAddress)
 	{
 		if (!strncmp(stationsInfo->MACAddress, MACAddress, MAC_STRING_LEN))
 		{
-			PRINT_DEBUG("%s; MACAddress ('%s') record found!\n", __FUNCTION__, stationsInfo->MACAddress);
+			console_printf("%s; MACAddress ('%s') record found!\n", __FUNCTION__, stationsInfo->MACAddress);
 			return stationsInfo;
 		}
 
@@ -502,7 +493,7 @@ static int interfaceChannelNumberGet(char* ifname)
 
     if (ret == DWPAL_FAILURE)
     {
-        PRINT_ERROR("%s; GET_RADIO_INFO command send error\n", __FUNCTION__);
+        console_printf("%s; GET_RADIO_INFO command send error\n", __FUNCTION__);
         return DWPAL_FAILURE;
     }
     else
@@ -518,9 +509,9 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 	int            idx;
 	StationsInfo_t *stationsInfo = NULL;
 
-	PRINT_DEBUG("%s; ifname= '%s', opCode= '%s'\n", __FUNCTION__, ifname, opCode);
+	console_printf("%s; ifname= '%s', opCode= '%s'\n", __FUNCTION__, ifname, opCode);
 
-	PRINT_DEBUG("\n%s; database BEFORE event process:\n", __FUNCTION__);
+	console_printf("\n%s; database BEFORE event process:\n", __FUNCTION__);
 	stationsInfoListPrint();
 
 	if (!strncmp(opCode, "AP-STA-CONNECTED", strnlen_s("AP-STA-CONNECTED", RSIZE_MAX_STR)))
@@ -554,7 +545,7 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 
         if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
         {
-            PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+            console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
             return DWPAL_FAILURE;
         }
 
@@ -562,13 +553,13 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 
         if (stationsInfo == NULL)
 		{
-			PRINT_DEBUG("%s; AP-STA-CONNECTED; 'MACAddress' (%s) not found! ==> create new record\n", __FUNCTION__, sta_connected_event.MACAddress);
+			console_printf("%s; AP-STA-CONNECTED; 'MACAddress' (%s) not found! ==> create new record\n", __FUNCTION__, sta_connected_event.MACAddress);
 
 			/* add a record at the beginning of the list */
 			stationsInfo = (StationsInfo_t *)malloc(sizeof(StationsInfo_t));
 			if (stationsInfo == NULL)
 			{
-				PRINT_DEBUG("%s; ERROR! malloc returned NULL ==> Abort!\n", __FUNCTION__);
+				console_printf("%s; ERROR! malloc returned NULL ==> Abort!\n", __FUNCTION__);
 			}
 			else
 			{
@@ -579,22 +570,22 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 				idx = interfaceIndexGet(ifname);
 				if (idx == (-1))
 				{
-					PRINT_DEBUG("%s; ERROR: interfaceIdx of '%s' is %d ==> Abort!\n", __FUNCTION__, ifname, idx);
+					console_printf("%s; ERROR: interfaceIdx of '%s' is %d ==> Abort!\n", __FUNCTION__, ifname, idx);
 					return DWPAL_FAILURE;
 				}
 
-				PRINT_DEBUG("%s; MACAddress= '%s'\n", __FUNCTION__, sta_connected_event.MACAddress);
+				console_printf("%s; MACAddress= '%s'\n", __FUNCTION__, sta_connected_event.MACAddress);
 				STRNCPY_S(stationsInfo->MACAddress, 18, sta_connected_event.MACAddress, 17);
 				stationsInfo->MACAddress[17] = '\0';
 
 				if (!strncmp(radioInterface[idx].supportedFrequencyBands, "5GHz", strnlen_s("5GHz", RSIZE_MAX_STR)))
 				{
-					PRINT_DEBUG("%s; set 'is_5G_supported' to 'true'\n", __FUNCTION__);
+					console_printf("%s; set 'is_5G_supported' to 'true'\n", __FUNCTION__);
 					stationsInfo->is_5G_supported = 1;  /*true*/
 				}
 				else
 				{
-					PRINT_DEBUG("%s; set 'is_5G_supported' to 'NON_VALID'\n", __FUNCTION__);
+					console_printf("%s; set 'is_5G_supported' to 'NON_VALID'\n", __FUNCTION__);
 					stationsInfo->is_5G_supported = 2;  /* NON_VALID */
 				}
 
@@ -605,11 +596,11 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 		}
         else
         {
-            PRINT_DEBUG("%s; MACAddress ('%s') found! ==> check if it is already set as connected\n", __FUNCTION__, sta_connected_event.MACAddress);
-			PRINT_DEBUG("%s; 'connectedTo' is '%s'\n", __FUNCTION__, stationsInfo->connectedTo);
+            console_printf("%s; MACAddress ('%s') found! ==> check if it is already set as connected\n", __FUNCTION__, sta_connected_event.MACAddress);
+			console_printf("%s; 'connectedTo' is '%s'\n", __FUNCTION__, stationsInfo->connectedTo);
 			if ( (stationsInfo->connectedTo != NULL) && (!strncmp(stationsInfo->connectedTo, ifname, 5)) )
 			{
-				PRINT_ERROR("%s; Station ('%s') already connected to the same i/f ('%s') ==> do NOT update the data-base\n", __FUNCTION__, stationsInfo->MACAddress, ifname);
+				console_printf("%s; Station ('%s') already connected to the same i/f ('%s') ==> do NOT update the data-base\n", __FUNCTION__, stationsInfo->MACAddress, ifname);
 				return DWPAL_SUCCESS;
 			}
 
@@ -619,7 +610,7 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 
 				if (!strncmp(stationsInfo->connectedTo, stationsInfo->ifnameCheckIfConnected, strnlen_s(stationsInfo->ifnameCheckIfConnected, RSIZE_MAX_STR)))
 				{
-					PRINT_DEBUG("%s; Steering occurred! (MACAddress= '%s' to '%s')\n", __FUNCTION__, stationsInfo->MACAddress, stationsInfo->connectedTo);
+					console_printf("%s; Steering occurred! (MACAddress= '%s' to '%s')\n", __FUNCTION__, stationsInfo->MACAddress, stationsInfo->connectedTo);
 					stationsInfo->numOfTicks = 0;
 					STRCPY_S(stationsInfo->ifnameCheckIfConnected, FIELD_VALUE_LENGTH, "NONE");
 					stationsInfoListPrint();
@@ -627,7 +618,7 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 
 				/* Due to the fact that some stations does NOT send DISASSOCIATE when disconnecting, STA-DISCONNECTED won't arrive; the below will force it! */
 				if (dwpal_wlan_sta_disassociate(stationsInfo->connectedTo, stationsInfo->MACAddress) == DWPAL_FAILURE)
-					PRINT_DEBUG("fapi_wlan_sta_disassociate ERROR\n");
+					console_printf("fapi_wlan_sta_disassociate ERROR\n");
 			}
 
 			/* update 'is_5G_supported' ONLY if it is NOT 'true' */
@@ -636,13 +627,13 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 				idx = interfaceIndexGet(ifname);
 				if (idx == (-1))
 				{
-					PRINT_ERROR("%s; ERROR: interfaceIdx of '%s' is %d ==> Abort!\n", __FUNCTION__, ifname, idx);
+					console_printf("%s; ERROR: interfaceIdx of '%s' is %d ==> Abort!\n", __FUNCTION__, ifname, idx);
 					return DWPAL_FAILURE;
 				}
 
 				if (!strncmp(radioInterface[idx].supportedFrequencyBands, "5GHz", strnlen_s("5GHz", RSIZE_MAX_STR)))
 				{  /* it means that the band we are connected to is 5 GHz */
-					PRINT_DEBUG("%s; connected to 5 GHz ==> update 'is_5G_supported' to 'true'\n", __FUNCTION__);
+					console_printf("%s; connected to 5 GHz ==> update 'is_5G_supported' to 'true'\n", __FUNCTION__);
 					stationsInfo->is_5G_supported = 1;  /*true*/
 				}
 			}
@@ -650,21 +641,21 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 
         if (stationsInfo != NULL)
         {
-			PRINT_DEBUG("%s; Update 'connectedTo' ('%s')\n", __FUNCTION__, (char *)ifname);
+			console_printf("%s; Update 'connectedTo' ('%s')\n", __FUNCTION__, (char *)ifname);
 			STRNCPY_S(stationsInfo->connectedTo, 6, (char *)ifname, 5);
 			stationsInfo->connectedTo[5] = '\0';
 
 			time(&rawtime);
-			PRINT_DEBUG("%s; rawtime= %ld\n", __FUNCTION__, rawtime);
+			console_printf("%s; rawtime= %ld\n", __FUNCTION__, rawtime);
 
 			stationsInfo->connectionTime = rawtime;
 
 			stationsInfo->btm_supported = false;
-            PRINT_DEBUG("%s; btm_supported is '%d'\n", __FUNCTION__, sta_connected_event.btm_supported);
+            console_printf("%s; btm_supported is '%d'\n", __FUNCTION__, sta_connected_event.btm_supported);
 
             if (sta_connected_event.btm_supported == 1)
             {
-                PRINT_DEBUG("%s; btm_supported is 'true' ==> update 'btm_supported' and 'is_5G_supported' to 'true'\n", __FUNCTION__);
+                console_printf("%s; btm_supported is 'true' ==> update 'btm_supported' and 'is_5G_supported' to 'true'\n", __FUNCTION__);
                 stationsInfo->btm_supported = true;
                 stationsInfo->is_5G_supported = 1;  /*true*/
             }
@@ -688,7 +679,7 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 
         if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
         {
-            PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+            console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
             return DWPAL_FAILURE;
         }
 
@@ -696,19 +687,19 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 
         if (stationsInfo == NULL)
 		{
-			PRINT_ERROR("%s; AP-STA-DISCONNECTED; 'MACAddress' (%s) not found! ==> do NOT update the database\n", __FUNCTION__, sta_disconnected_event.MACAddress);
+			console_printf("%s; AP-STA-DISCONNECTED; 'MACAddress' (%s) not found! ==> do NOT update the database\n", __FUNCTION__, sta_disconnected_event.MACAddress);
 		}
         else
 		{
             if (!strncmp(sta_disconnected_event.VAPName, stationsInfo->connectedTo, 5))
             {
-                PRINT_DEBUG("%s; AP-STA-DISCONNECTED for the ifname ('%s') it is connected to ==> set 'connectedTo' to 'NONE'\n", __FUNCTION__, sta_disconnected_event.MACAddress);
+                console_printf("%s; AP-STA-DISCONNECTED for the ifname ('%s') it is connected to ==> set 'connectedTo' to 'NONE'\n", __FUNCTION__, sta_disconnected_event.MACAddress);
                 STRCPY_S(stationsInfo->connectedTo, FIELD_VALUE_LENGTH, "NONE");
                 stationsInfo->connectionTime = 0;
             }
             else
             {
-                PRINT_ERROR("%s; AP-STA-DISCONNECTED for the ifname ('%s') it is NOT connected to ('%s') ==> do NOT update the database\n", __FUNCTION__, sta_disconnected_event.MACAddress, stationsInfo->connectedTo);
+                console_printf("%s; AP-STA-DISCONNECTED for the ifname ('%s') it is NOT connected to ('%s') ==> do NOT update the database\n", __FUNCTION__, sta_disconnected_event.MACAddress, stationsInfo->connectedTo);
             }
 		}
     }
@@ -733,59 +724,59 @@ static int dwpalRadioInterfaceEventCallback(char *ifname, char *opCode, char *ms
 
         if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
         {
-            PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+            console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
             return DWPAL_FAILURE;
         }
 
-        PRINT_DEBUG("%s; Steering of MACAddress= '%s' to target_bssid= '%s' returned status_code= '%d'\n", __FUNCTION__,
+        console_printf("%s; Steering of MACAddress= '%s' to target_bssid= '%s' returned status_code= '%d'\n", __FUNCTION__,
                                  bss_tm_resp_event.MACAddress, bss_tm_resp_event.target_bssid, bss_tm_resp_event.status_code);
 
         status_code = bss_tm_resp_event.status_code;
         switch (status_code)
         {
             case 0:
-				PRINT_DEBUG("%s; status_code= '%d' ==> WNM_BSS_TM_ACCEPT\n", __FUNCTION__, status_code);
+				console_printf("%s; status_code= '%d' ==> WNM_BSS_TM_ACCEPT\n", __FUNCTION__, status_code);
 				break;
 
 			case 1:
-				PRINT_DEBUG("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_UNSPECIFIED\n", __FUNCTION__, status_code);
+				console_printf("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_UNSPECIFIED\n", __FUNCTION__, status_code);
 				break;
 
 			case 2:
-				PRINT_DEBUG("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_INSUFFICIENT_BEACON\n", __FUNCTION__, status_code);
+				console_printf("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_INSUFFICIENT_BEACON\n", __FUNCTION__, status_code);
 				break;
 
 			case 3:
-				PRINT_DEBUG("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_INSUFFICIENT_CAPABITY\n", __FUNCTION__, status_code);
+				console_printf("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_INSUFFICIENT_CAPABITY\n", __FUNCTION__, status_code);
 				break;
 
 			case 4:
-				PRINT_DEBUG("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_UNDESIRED\n", __FUNCTION__, status_code);
+				console_printf("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_UNDESIRED\n", __FUNCTION__, status_code);
 				break;
 
 			case 5:
-				PRINT_DEBUG("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_DELAY_REQUEST\n", __FUNCTION__, status_code);
+				console_printf("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_DELAY_REQUEST\n", __FUNCTION__, status_code);
 				break;
 
 			case 6:
-				PRINT_DEBUG("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_STA_CANDIDATE_LIST_PROVIDED\n", __FUNCTION__, status_code);
+				console_printf("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_STA_CANDIDATE_LIST_PROVIDED\n", __FUNCTION__, status_code);
 				break;
 
 			case 7:
-				PRINT_DEBUG("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_NO_SUITABLE_CANDIDATES\n", __FUNCTION__, status_code);
+				console_printf("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_NO_SUITABLE_CANDIDATES\n", __FUNCTION__, status_code);
 				break;
 
 			case 8:
-				PRINT_DEBUG("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_LEAVING_ESS\n", __FUNCTION__, status_code);
+				console_printf("%s; status_code= '%d' ==> WNM_BSS_TM_REJECT_LEAVING_ESS\n", __FUNCTION__, status_code);
 				break;
 
 			default:
-				PRINT_DEBUG("%s; Illegal status_code ('%d')\n", __FUNCTION__, status_code);
+				console_printf("%s; Illegal status_code ('%d')\n", __FUNCTION__, status_code);
 				break;
         }
     }
 
-	PRINT_DEBUG("\n%s; database AFTER event process:\n", __FUNCTION__);
+	console_printf("\n%s; database AFTER event process:\n", __FUNCTION__);
 	stationsInfoListPrint();
 
 	return DWPAL_SUCCESS;
@@ -812,11 +803,11 @@ static void allBandsStationAllowSet(char *MACAddress)
 		if ( (!strncmp(radioInterface[i].supportedFrequencyBands, "2.4GHz", strnlen_s("2.4GHz", RSIZE_MAX_STR))) ||
 		     (!strncmp(radioInterface[i].supportedFrequencyBands, "5GHz", strnlen_s("5GHz", RSIZE_MAX_STR))) )
 		{
-			PRINT_DEBUG("%s; Allowing back station (MACAddress= '%s') for interface '%s'\n",
+			console_printf("%s; Allowing back station (MACAddress= '%s') for interface '%s'\n",
 			       __FUNCTION__, MACAddress, radioInterface[i].name);
 
 			if (dwpal_wlan_sta_allow(radioInterface[i].name, MACAddress) == DWPAL_FAILURE)
-				PRINT_ERROR("%s; dwpal_wlan_sta_allow ERROR\n", __FUNCTION__);
+				console_printf("%s; dwpal_wlan_sta_allow ERROR\n", __FUNCTION__);
 		}
 	}
 }
@@ -824,52 +815,52 @@ static void allBandsStationAllowSet(char *MACAddress)
 
 static void bandSteeringPerform(char *ifname, char *MACAddress, char *ifnameToSteerTo, char *BSSID_ToSteerTo, bool btm_supported)
 {
-    PRINT_DEBUG("%s Entry; ifname= '%s', MACAddress= '%s', ifnameToSteerTo= '%s', BSSID_ToSteerTo= '%s', btm_supported= %d\n", __FUNCTION__, ifname, MACAddress, ifnameToSteerTo, BSSID_ToSteerTo, btm_supported);
+    console_printf("%s Entry; ifname= '%s', MACAddress= '%s', ifnameToSteerTo= '%s', BSSID_ToSteerTo= '%s', btm_supported= %d\n", __FUNCTION__, ifname, MACAddress, ifnameToSteerTo, BSSID_ToSteerTo, btm_supported);
 
     if (btm_supported == true)
 	{
 		int  ChannelNumberToSteerTo;
 		char neighbor[64];
 
-        PRINT_DEBUG("%s; handle a BTM station (btm_supported= %d)\n", __FUNCTION__, btm_supported);
+        console_printf("%s; handle a BTM station (btm_supported= %d)\n", __FUNCTION__, btm_supported);
 
         ChannelNumberToSteerTo = interfaceChannelNumberGet(ifname);
         if (ChannelNumberToSteerTo == DWPAL_FAILURE)
         {
-            PRINT_ERROR("%s; interfaceChannelNumberGet returned error ==> use '1' for ChannelNumberToSteerTo\n", __FUNCTION__);
+            console_printf("%s; interfaceChannelNumberGet returned error ==> use '1' for ChannelNumberToSteerTo\n", __FUNCTION__);
 			ChannelNumberToSteerTo = 1;
         }
         else
-			PRINT_DEBUG("%s; ChannelNumberToSteerTo= '%d'\n", __FUNCTION__, ChannelNumberToSteerTo);
+			console_printf("%s; ChannelNumberToSteerTo= '%d'\n", __FUNCTION__, ChannelNumberToSteerTo);
 
         snprintf(neighbor, sizeof(neighbor) - 1, "%s,0,0,%d,0,255", BSSID_ToSteerTo, ChannelNumberToSteerTo);
 
-        PRINT_DEBUG("%s; send BSS_TM_REQ command; MACAddress= '%s', pref=1, disassoc_imminent=1, disassoc_timer=10, url='%s'\n", __FUNCTION__, MACAddress, neighbor);
+        console_printf("%s; send BSS_TM_REQ command; MACAddress= '%s', pref=1, disassoc_imminent=1, disassoc_timer=10, url='%s'\n", __FUNCTION__, MACAddress, neighbor);
 
         if (dwpal_wlan_bss_transition_management_req(ifname, MACAddress, 1, 1, 10, neighbor) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("dwpal_wlan_bss_transition_management_req ERROR\n");
+			console_printf("dwpal_wlan_bss_transition_management_req ERROR\n");
 		}
     }
     else
     {
-		PRINT_DEBUG("%s; handle a non-BTM station (btm_supported= %d)\n", __FUNCTION__, btm_supported);
+		console_printf("%s; handle a non-BTM station (btm_supported= %d)\n", __FUNCTION__, btm_supported);
 
 		if (dwpal_wlan_sta_allow(ifnameToSteerTo, MACAddress) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("dwpal_wlan_sta_allow ERROR\n");
+			console_printf("dwpal_wlan_sta_allow ERROR\n");
 			return;
 		}
 
 		if (dwpal_wlan_sta_deny(ifname, MACAddress) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("fapi_wlan_sta_deny ERROR\n");
+			console_printf("fapi_wlan_sta_deny ERROR\n");
 			return;
 		}
 
 		if (dwpal_wlan_sta_disassociate(ifname, MACAddress) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("dwpal_wlan_sta_disassociate ERROR\n");
+			console_printf("dwpal_wlan_sta_disassociate ERROR\n");
 			return;
 		}
     }
@@ -897,13 +888,13 @@ static void bandSteeringIfNeededPerform(char *ifname, char *MACAddress, int sign
 		{ NULL, NULL, DWPAL_NUM_OF_PARSING_TYPES, NULL, 0 }
 	};
 
-	PRINT_DEBUG("%s; ifname= '%s', MACAddress= '%s', btm_supported= %d\n", __FUNCTION__, ifname, MACAddress, btm_supported);
+	console_printf("%s; ifname= '%s', MACAddress= '%s', btm_supported= %d\n", __FUNCTION__, ifname, MACAddress, btm_supported);
 
     STRCPY_S(ifnameSteeredTo, IFNAME_STRING_LENGTH, "NONE");
 
     if (dwpal_wlan_sta_measurement_get(ifname, MACAddress, fieldsToParse) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_wlan_sta_measurement_get ERROR\n", __FUNCTION__);
+		console_printf("%s; dwpal_wlan_sta_measurement_get ERROR\n", __FUNCTION__);
 
 		STRCPY_S(ifnameSteeredTo, IFNAME_STRING_LENGTH, "NON_VALID");
 		return;
@@ -914,27 +905,27 @@ static void bandSteeringIfNeededPerform(char *ifname, char *MACAddress, int sign
 
     if ( (OperatingStandard != NULL) )
 	{
-		PRINT_DEBUG("%s; SignalStrength= '%d', OperatingStandard= '%s'\n", __FUNCTION__, SignalStrength, OperatingStandard);
-		PRINT_DEBUG("%s; SignalStrength= %d, signalStrengthThreshold_2_4= %d, signalStrengthThreshold_5= %d\n",
+		console_printf("%s; SignalStrength= '%d', OperatingStandard= '%s'\n", __FUNCTION__, SignalStrength, OperatingStandard);
+		console_printf("%s; SignalStrength= %d, signalStrengthThreshold_2_4= %d, signalStrengthThreshold_5= %d\n",
 		       __FUNCTION__, SignalStrength, signalStrengthThreshold_2_4, signalStrengthThreshold_5);
 
 		idx = interfaceIndexGet(ifname);
 		if (idx == (-1))
 		{
-			PRINT_ERROR("%s; ERROR: interfaceIdx of '%s' is %d ==> Abort!\n", __FUNCTION__, ifname, idx);
+			console_printf("%s; ERROR: interfaceIdx of '%s' is %d ==> Abort!\n", __FUNCTION__, ifname, idx);
 			return;
 		}
 
-		PRINT_DEBUG("%s; supportedFrequencyBands= %s\n", __FUNCTION__, radioInterface[idx].supportedFrequencyBands);
+		console_printf("%s; supportedFrequencyBands= %s\n", __FUNCTION__, radioInterface[idx].supportedFrequencyBands);
 
 #if defined BAND_STEERING_TEST_MODE
 		tempOffset += 8;
-		PRINT_DEBUG("%s; SignalStrength= %d, signalStrengthThreshold_2_4= %d, signalStrengthThreshold_5= %d\n",
+		console_printf("%s; SignalStrength= %d, signalStrengthThreshold_2_4= %d, signalStrengthThreshold_5= %d\n",
 		       __FUNCTION__, SignalStrength, signalStrengthThreshold_2_4, signalStrengthThreshold_5);
-		PRINT_DEBUG("%s; supportedFrequencyBands= '%s' ==>\n", __FUNCTION__, radioInterface[idx].supportedFrequencyBands);
-		PRINT_DEBUG("%s; SignalStrength + %d)= %d, signalStrengthThreshold_2_4= %d\n",
+		console_printf("%s; supportedFrequencyBands= '%s' ==>\n", __FUNCTION__, radioInterface[idx].supportedFrequencyBands);
+		console_printf("%s; SignalStrength + %d)= %d, signalStrengthThreshold_2_4= %d\n",
 		       __FUNCTION__, tempOffset, (SignalStrength + tempOffset), signalStrengthThreshold_2_4);
-		PRINT_DEBUG("%s; SignalStrength - %d)= %d, signalStrengthThreshold_5= %d\n",
+		console_printf("%s; SignalStrength - %d)= %d, signalStrengthThreshold_5= %d\n",
 		       __FUNCTION__, tempOffset, (SignalStrength - tempOffset), signalStrengthThreshold_5);
 		if ( ( (!strncmp(radioInterface[idx].supportedFrequencyBands, "2.4GHz", strnlen_s("2.4GHz", RSIZE_MAX_STR))) &&
 		       ((SignalStrength + tempOffset) > signalStrengthThreshold_2_4) ) ||
@@ -954,8 +945,8 @@ static void bandSteeringIfNeededPerform(char *ifname, char *MACAddress, int sign
 			STRCPY_S(ifnameToSteerTo, IFNAME_STRING_LENGTH, radioInterface[idx].ifnameToSteerTo);
 			STRCPY_S(BSSID_ToSteerTo, FIELD_VALUE_LENGTH, radioInterface[idx].BSSID_ToSteerTo);
 
-			PRINT_DEBUG("%s; Perform Band-Steering (MACAddress= '%s' from '%s' to '%s')\n", __FUNCTION__, MACAddress, ifname, ifnameToSteerTo);
-			PRINT_DEBUG("%s; ifname= '%s', ifnameToSteerTo= '%s', BSSID_ToSteerTo= '%s'\n", __FUNCTION__, ifname, ifnameToSteerTo, BSSID_ToSteerTo);
+			console_printf("%s; Perform Band-Steering (MACAddress= '%s' from '%s' to '%s')\n", __FUNCTION__, MACAddress, ifname, ifnameToSteerTo);
+			console_printf("%s; ifname= '%s', ifnameToSteerTo= '%s', BSSID_ToSteerTo= '%s'\n", __FUNCTION__, ifname, ifnameToSteerTo, BSSID_ToSteerTo);
 
 			STRCPY_S(ifnameSteeredTo, IFNAME_STRING_LENGTH, ifnameToSteerTo);
 
@@ -963,7 +954,7 @@ static void bandSteeringIfNeededPerform(char *ifname, char *MACAddress, int sign
 		}
 		else
 		{
-			PRINT_DEBUG("%s; (%s) Signal threshold: SignalStrength= %d, signalStrengthThreshold_2_4= %d, signalStrengthThreshold_5= %d ==> cont...\n",
+			console_printf("%s; (%s) Signal threshold: SignalStrength= %d, signalStrengthThreshold_2_4= %d, signalStrengthThreshold_5= %d ==> cont...\n",
 			       __FUNCTION__, ifname, SignalStrength, signalStrengthThreshold_2_4, signalStrengthThreshold_5);
 		}
     }
@@ -981,20 +972,20 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 	time_t          rawtime;
 	StationsInfo_t  *stationsInfo = NULL;
 
-	PRINT_DEBUG("\n%s Entry; signalStrengthThreshold_2_4= %d, signalStrengthThreshold_5= %d, intervalInSeconds= %d, toleranceInSeconds= %d, numOfTicksAllowedForSteering= %d\n",
+	console_printf("\n%s Entry; signalStrengthThreshold_2_4= %d, signalStrengthThreshold_5= %d, intervalInSeconds= %d, toleranceInSeconds= %d, numOfTicksAllowedForSteering= %d\n",
 	       __FUNCTION__, signalStrengthThreshold_2_4, signalStrengthThreshold_5, intervalInSeconds, toleranceInSeconds, numOfTicksAllowedForSteering);
 
 	stationsInfo = firstStationInfo;
 	while (stationsInfo != NULL)
 	{
-		PRINT_DEBUG("%s; MACAddress= '%s', connectedTo= '%s', connectionTime= %d, is_5G_supported= %d, ifnameCheckIfConnected= '%s', numOfTicks= %d, btm_supported= %d, isBandSteeringPossible= %d\n",
+		console_printf("%s; MACAddress= '%s', connectedTo= '%s', connectionTime= %d, is_5G_supported= %d, ifnameCheckIfConnected= '%s', numOfTicks= %d, btm_supported= %d, isBandSteeringPossible= %d\n",
 			   __FUNCTION__, stationsInfo->MACAddress, stationsInfo->connectedTo, stationsInfo->connectionTime, stationsInfo->is_5G_supported, stationsInfo->ifnameCheckIfConnected,
 			   stationsInfo->numOfTicks, stationsInfo->btm_supported, stationsInfo->isBandSteeringPossible);
 
 		if (stationsInfo->isBandSteeringPossible == false)
 		{
 			/* Band-Steering is impossible for this station */
-			PRINT_DEBUG("%s; Station (MACAddress= '%s') can NOT be steered, it failed to do so many times before ==> do NOT check for band-steering. cont...\n",
+			console_printf("%s; Station (MACAddress= '%s') can NOT be steered, it failed to do so many times before ==> do NOT check for band-steering. cont...\n",
 				   __FUNCTION__, stationsInfo->MACAddress);
 
 			stationsInfo = stationsInfo->nextStation;
@@ -1017,67 +1008,67 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 
 			if (dwpal_wlan_sta_measurement_get(stationsInfo->connectedTo, stationsInfo->MACAddress, fieldsToParse) == DWPAL_FAILURE)
 			{
-				PRINT_ERROR("%s; dwpal_wlan_sta_measurement_get ERROR\n", __FUNCTION__);
+				console_printf("%s; dwpal_wlan_sta_measurement_get ERROR\n", __FUNCTION__);
 				stationsInfo = stationsInfo->nextStation;
 				continue;
 			}
 
 			STRCPY_S(OperatingStandard, FIELD_VALUE_LENGTH, sta_measurements.OperatingStandard);
 
-			PRINT_DEBUG("%s; OperatingStandard= '%s', is_5G_supported= %d\n", __FUNCTION__, OperatingStandard, stationsInfo->is_5G_supported);
+			console_printf("%s; OperatingStandard= '%s', is_5G_supported= %d\n", __FUNCTION__, OperatingStandard, stationsInfo->is_5G_supported);
 
 			if (strchr(OperatingStandard, 'a') != NULL)
 			{
 				if (stationsInfo->is_5G_supported != 1 /*true*/)
 				{
 					stationsInfo->is_5G_supported = 1; /*true*/
-					PRINT_DEBUG("%s; OperatingStandard ('%s') includes 'a' ==> supports 5 GHz; database:\n", __FUNCTION__, OperatingStandard);
+					console_printf("%s; OperatingStandard ('%s') includes 'a' ==> supports 5 GHz; database:\n", __FUNCTION__, OperatingStandard);
 					stationsInfoListPrint();
 				}
 				else
 				{
-					PRINT_DEBUG("%s; *** is_5G_supported= %d ==> do NOT check for update ***\n", __FUNCTION__, stationsInfo->is_5G_supported);
+					console_printf("%s; *** is_5G_supported= %d ==> do NOT check for update ***\n", __FUNCTION__, stationsInfo->is_5G_supported);
 				}
 			}
 			else
 			{
-				PRINT_DEBUG("%s; OperatingStandard ('%s') does NOT include 'a' ==> NOT supporting 5 GHz\n", __FUNCTION__, OperatingStandard);
+				console_printf("%s; OperatingStandard ('%s') does NOT include 'a' ==> NOT supporting 5 GHz\n", __FUNCTION__, OperatingStandard);
 			}
 		}
 
-		PRINT_DEBUG("%s; connectedTo= '%s', is_5G_supported= %d, ifnameCheckIfConnected= '%s'\n",
+		console_printf("%s; connectedTo= '%s', is_5G_supported= %d, ifnameCheckIfConnected= '%s'\n",
 			   __FUNCTION__, stationsInfo->connectedTo, stationsInfo->is_5G_supported, stationsInfo->ifnameCheckIfConnected);
 		if ( (stationsInfo->ifnameCheckIfConnected != NULL) && (strncmp(stationsInfo->ifnameCheckIfConnected, "NONE", strnlen_s("NONE", RSIZE_MAX_STR))) && (strncmp(stationsInfo->ifnameCheckIfConnected, "", 1)))
 		{
-			PRINT_DEBUG("%s; ifnameCheckIfConnected= '%s' ==> do NOT check for band steering; cont...\n", __FUNCTION__, stationsInfo->ifnameCheckIfConnected);
+			console_printf("%s; ifnameCheckIfConnected= '%s' ==> do NOT check for band steering; cont...\n", __FUNCTION__, stationsInfo->ifnameCheckIfConnected);
 		}
 		else
 		{
-			PRINT_DEBUG("%s; ifnameCheckIfConnected= '%s' ==> check for band steering\n", __FUNCTION__, stationsInfo->ifnameCheckIfConnected);
+			console_printf("%s; ifnameCheckIfConnected= '%s' ==> check for band steering\n", __FUNCTION__, stationsInfo->ifnameCheckIfConnected);
 
 			if ( ( (stationsInfo->connectedTo != NULL) && (!strncmp(stationsInfo->connectedTo, "NONE", strnlen_s("NONE", RSIZE_MAX_STR))) ) ||
 				 (stationsInfo->connectedTo == NULL) ||
 				 (stationsInfo->is_5G_supported == 0 /*false*/) )
 			{
 				/* There is no connection, or 5 GHz is not supported */
-				PRINT_DEBUG("%s; connectedTo= '%s', is_5G_supported= %d ==> do NOT check for band-steering. cont...\n",
+				console_printf("%s; connectedTo= '%s', is_5G_supported= %d ==> do NOT check for band-steering. cont...\n",
 					   __FUNCTION__, stationsInfo->connectedTo, stationsInfo->is_5G_supported);
 			}
 			else if ( (strncmp(stationsInfo->connectedTo, "NONE", strnlen_s("NONE", RSIZE_MAX_STR))) && (stationsInfo->is_5G_supported == 2 /*NON_VALID*/) )
 			{
 				/* There is a connection, and 5 GHz supported is unknown yet! */
-				PRINT_DEBUG("%s; connectedTo= '%s', is_5G_supported= %d ==> try to switch to 5 GHz band\n",
+				console_printf("%s; connectedTo= '%s', is_5G_supported= %d ==> try to switch to 5 GHz band\n",
 					   __FUNCTION__, stationsInfo->connectedTo, stationsInfo->is_5G_supported);
 
 				idx = interfaceIndexGet(stationsInfo->connectedTo);
 				if (idx == (-1))
 				{
-					PRINT_DEBUG("%s; ERROR: interfaceIdx of '%s' is %d ==> Abort!\n", __FUNCTION__, stationsInfo->connectedTo, idx);
+					console_printf("%s; ERROR: interfaceIdx of '%s' is %d ==> Abort!\n", __FUNCTION__, stationsInfo->connectedTo, idx);
 					stationsInfo = stationsInfo->nextStation;
 					continue;
 				}
 
-				PRINT_DEBUG("%s; ifnameToSteerTo= '%s', BSSID_ToSteerTo= '%s'\n", __FUNCTION__, radioInterface[idx].ifnameToSteerTo, radioInterface[idx].BSSID_ToSteerTo);
+				console_printf("%s; ifnameToSteerTo= '%s', BSSID_ToSteerTo= '%s'\n", __FUNCTION__, radioInterface[idx].ifnameToSteerTo, radioInterface[idx].BSSID_ToSteerTo);
 
 				bandSteeringPerform(stationsInfo->connectedTo, stationsInfo->MACAddress, radioInterface[idx].ifnameToSteerTo, radioInterface[idx].BSSID_ToSteerTo, stationsInfo->btm_supported);
 
@@ -1088,15 +1079,15 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 			{
 				time(&rawtime);
 				secondsFromStaConnection = rawtime - stationsInfo->connectionTime;
-				PRINT_DEBUG("%s; rawtime= %ld, connectionTime= %d ==> secondsFromStaConnection= %d\n", __FUNCTION__, rawtime, stationsInfo->connectionTime, secondsFromStaConnection);
+				console_printf("%s; rawtime= %ld, connectionTime= %d ==> secondsFromStaConnection= %d\n", __FUNCTION__, rawtime, stationsInfo->connectionTime, secondsFromStaConnection);
 
 				if (secondsFromStaConnection > toleranceInSeconds)
 				{
-					PRINT_DEBUG("%s; If needed, perform Band-Steering: Connected to '%s', MACAddress= '%s'\n", __FUNCTION__, stationsInfo->connectedTo, stationsInfo->MACAddress);
+					console_printf("%s; If needed, perform Band-Steering: Connected to '%s', MACAddress= '%s'\n", __FUNCTION__, stationsInfo->connectedTo, stationsInfo->MACAddress);
 
 					bandSteeringIfNeededPerform(stationsInfo->connectedTo, stationsInfo->MACAddress, signalStrengthThreshold_2_4, signalStrengthThreshold_5, ifnameSteeredTo, stationsInfo->btm_supported);
 
-					PRINT_DEBUG("%s; *** MACAddress= '%s', ifnameSteeredTo= '%s' ***\n", __FUNCTION__, stationsInfo->MACAddress, ifnameSteeredTo);
+					console_printf("%s; *** MACAddress= '%s', ifnameSteeredTo= '%s' ***\n", __FUNCTION__, stationsInfo->MACAddress, ifnameSteeredTo);
 					if (strncmp(ifnameSteeredTo, "NON_VALID", strnlen_s("NON_VALID", RSIZE_MAX_STR)))
 					{
 						STRNCPY_S(stationsInfo->ifnameCheckIfConnected, 6, ifnameSteeredTo, 5);  /* Update ifnameCheckIfConnected */
@@ -1105,12 +1096,12 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 				}
 				else
 				{
-					PRINT_DEBUG("%s; secondsFromStaConnection (%d) <= toleranceInSeconds (%d) ==> do NOT check for band-steering. cont...\n", __FUNCTION__, secondsFromStaConnection, toleranceInSeconds);
+					console_printf("%s; secondsFromStaConnection (%d) <= toleranceInSeconds (%d) ==> do NOT check for band-steering. cont...\n", __FUNCTION__, secondsFromStaConnection, toleranceInSeconds);
 				}
 			}
 		}
 
-		PRINT_DEBUG("%s; *** MACAddress= '%s', is_5G_supported= %d, connectedTo= '%s', ifnameCheckIfConnected= '%s', btm_supported= %d ***\n",
+		console_printf("%s; *** MACAddress= '%s', is_5G_supported= %d, connectedTo= '%s', ifnameCheckIfConnected= '%s', btm_supported= %d ***\n",
 			   __FUNCTION__, stationsInfo->MACAddress, stationsInfo->is_5G_supported, stationsInfo->connectedTo, stationsInfo->ifnameCheckIfConnected, stationsInfo->btm_supported);
 
 		if ( (stationsInfo->is_5G_supported != 0 /*false*/) /* 'true' or 'NON_VALID' */ &&
@@ -1118,11 +1109,11 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 			 (strncmp(stationsInfo->ifnameCheckIfConnected, "NONE", strnlen_s("NONE", RSIZE_MAX_STR))) &&
 			 (strncmp(stationsInfo->ifnameCheckIfConnected, "", 1)) )
 		{  /* The ifnameCheckIfConnected is NOT "NONE", meaning, there was a band-steering on this station */
-			PRINT_DEBUG("%s; *** numOfTicks= %d; (connectedTo= '%s', ifnameCheckIfConnected= '%s') ***\n", __FUNCTION__, stationsInfo->numOfTicks, stationsInfo->connectedTo, stationsInfo->ifnameCheckIfConnected);
+			console_printf("%s; *** numOfTicks= %d; (connectedTo= '%s', ifnameCheckIfConnected= '%s') ***\n", __FUNCTION__, stationsInfo->numOfTicks, stationsInfo->connectedTo, stationsInfo->ifnameCheckIfConnected);
 
 			if (!strncmp(stationsInfo->connectedTo, stationsInfo->ifnameCheckIfConnected, strnlen_s(stationsInfo->ifnameCheckIfConnected, RSIZE_MAX_STR)))
 			{
-				PRINT_DEBUG("%s; Steering occurred! (MACAddress= '%s' to '%s')\n", __FUNCTION__, stationsInfo->MACAddress, stationsInfo->connectedTo);
+				console_printf("%s; Steering occurred! (MACAddress= '%s' to '%s')\n", __FUNCTION__, stationsInfo->MACAddress, stationsInfo->connectedTo);
 				stationsInfo->numOfTicks = 0;
 				STRCPY_S(stationsInfo->ifnameCheckIfConnected, FIELD_VALUE_LENGTH, "NONE");
 				stationsInfoListPrint();
@@ -1132,7 +1123,7 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 			}
 			else
 			{
-				PRINT_DEBUG("%s; Steering (MACAddress= '%s' to '%s') did NOT occur! (check %d out of %d)\n",
+				console_printf("%s; Steering (MACAddress= '%s' to '%s') did NOT occur! (check %d out of %d)\n",
 				       __FUNCTION__, stationsInfo->MACAddress, stationsInfo->ifnameCheckIfConnected, stationsInfo->numOfTicks+1, numOfTicksAllowedForSteering);
 
 				if (stationsInfo->numOfTicks >= (numOfTicksAllowedForSteering - 1))
@@ -1140,7 +1131,7 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 #if defined NEED_TO_BE_TESTED
 					bool isSpecialCase = false;
 #endif
-					PRINT_DEBUG("%s; PROBLEM!!! Steering did NOT work!!! (MACAddress= '%s' to '%s')\n",
+					console_printf("%s; PROBLEM!!! Steering did NOT work!!! (MACAddress= '%s' to '%s')\n",
 					       __FUNCTION__, stationsInfo->MACAddress, stationsInfo->ifnameCheckIfConnected);
 
 					stationsInfo->numOfTicks = 0;
@@ -1148,18 +1139,18 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 
 					if (stationsInfo->btm_supported == true)
 					{
-						PRINT_DEBUG("%s; btm_supported= %d ==> do not set 'isBandSteeringPossible' to 'false'\n", __FUNCTION__, stationsInfo->btm_supported);
-						PRINT_DEBUG("%s; Steering did NOT occur! MACAddress= '%s'(BTM supported station)\n", __FUNCTION__, stationsInfo->MACAddress);
-						PRINT_DEBUG("%s; btm_supported= %d ==> it should NOT try to steer for %d seconds period of time\n", __FUNCTION__, stationsInfo->btm_supported, toleranceInSeconds);
+						console_printf("%s; btm_supported= %d ==> do not set 'isBandSteeringPossible' to 'false'\n", __FUNCTION__, stationsInfo->btm_supported);
+						console_printf("%s; Steering did NOT occur! MACAddress= '%s'(BTM supported station)\n", __FUNCTION__, stationsInfo->MACAddress);
+						console_printf("%s; btm_supported= %d ==> it should NOT try to steer for %d seconds period of time\n", __FUNCTION__, stationsInfo->btm_supported, toleranceInSeconds);
 #if defined NEED_TO_BE_TESTED
-						PRINT_DEBUG("%s; isLegacyBandSteeringTriedOnce= '%s'\n", __FUNCTION__, isLegacyBandSteeringTriedOnce);
+						console_printf("%s; isLegacyBandSteeringTriedOnce= '%s'\n", __FUNCTION__, isLegacyBandSteeringTriedOnce);
 
 						if ( (!strncmp(isLegacyBandSteeringTriedOnce, "", 1)) || (!strncmp(isLegacyBandSteeringTriedOnce, "false", strnlen_s("false", RSIZE_MAX_STR))) )  // if legacy steering did NOT occured once
 						{
 							isSpecialCase = true;
 
 							/* perform legacy steering; update that legacy steeering occured once */
-							PRINT_DEBUG("%s; Special case: Steering of btm_supported station failed ==> try ONE TIME Legacy-Steering (black/white list)\n", __FUNCTION__);
+							console_printf("%s; Special case: Steering of btm_supported station failed ==> try ONE TIME Legacy-Steering (black/white list)\n", __FUNCTION__);
 							HELP_EDIT_SELF_NODE(tmpObj, "Device.WiFi.Radio.X_LANTIQ_COM_Vendor", "isLegacyBandSteeringTriedOnce", "true", 0, 0);
 
 							stationsInfo->numOfTicks = 0;
@@ -1168,18 +1159,18 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 							idx = interfaceIndexGet(stationsInfo->connectedTo);
 							if (idx == (-1))
 							{
-								PRINT_DEBUG("%s; ERROR: interfaceIdx of '%s' is %d ==> Abort!\n", __FUNCTION__, connectedTo, idx);
+								console_printf("%s; ERROR: interfaceIdx of '%s' is %d ==> Abort!\n", __FUNCTION__, connectedTo, idx);
 								return DWPAL_FAILURE;
 							}
 
-							PRINT_DEBUG("%s; Special case; connectedTo= '%s', idx= %d\n", __FUNCTION__, stationsInfo->connectedTo, idx);
+							console_printf("%s; Special case; connectedTo= '%s', idx= %d\n", __FUNCTION__, stationsInfo->connectedTo, idx);
 							bandSteeringPerform(stationsInfo->connectedTo, stationsInfo->MACAddress, radioInterface[idx].ifnameToSteerTo, radioInterface[idx].BSSID_ToSteerTo, "false");
 						}
 						else
 #endif
 						{
 							time(&rawtime);
-							PRINT_DEBUG("%s; Reset station's connection time (rawtime= %ld)\n", __FUNCTION__, rawtime);
+							console_printf("%s; Reset station's connection time (rawtime= %ld)\n", __FUNCTION__, rawtime);
 							stationsInfo->connectionTime = rawtime;
 						}
 					}
@@ -1189,7 +1180,7 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 					}
 
 #if defined NEED_TO_BE_TESTED
-					PRINT_DEBUG("%s; isSpecialCase= %d\n", __FUNCTION__, isSpecialCase);
+					console_printf("%s; isSpecialCase= %d\n", __FUNCTION__, isSpecialCase);
 
 					/* Allow back the station for ALL active bands */
 					if (isSpecialCase == false)
@@ -1204,17 +1195,17 @@ static int ap_manager_lite_band_steering_perform(int signalStrengthThreshold_2_4
 					/* In case that band steering failed, and 'is_5G_supported' is 'NON_VALID', it means that steering to 5 GHz failed ==> mark 'is_5G_supported' to 'false' */
 					if (stationsInfo->is_5G_supported == 2 /*NON_VALID*/)
 					{
-						PRINT_DEBUG("%s; Steering to 5 GHz band for a station which is unknown if supporting dual-band failed ==> set is_5G_supported to 'false'\n", __FUNCTION__);
+						console_printf("%s; Steering to 5 GHz band for a station which is unknown if supporting dual-band failed ==> set is_5G_supported to 'false'\n", __FUNCTION__);
 						stationsInfo->is_5G_supported = 0;  /*false*/
 					}
 				}
 				else
 				{
 					stationsInfo->numOfTicks++;
-					PRINT_DEBUG("%s; increment the counter ==> numOfTicks= %d\n", __FUNCTION__, stationsInfo->numOfTicks);
+					console_printf("%s; increment the counter ==> numOfTicks= %d\n", __FUNCTION__, stationsInfo->numOfTicks);
 				}
 
-				PRINT_DEBUG("%s; Steering did NOT occur; MACAddress= '%s' to '%s' ==> database:\n",
+				console_printf("%s; Steering did NOT occur; MACAddress= '%s' to '%s' ==> database:\n",
 					   __FUNCTION__, stationsInfo->MACAddress, stationsInfo->ifnameCheckIfConnected);
 				stationsInfoListPrint();
 			}
@@ -1242,19 +1233,19 @@ static int interfaceBSSIDInfoSet(void)
 		{ NULL, NULL, DWPAL_NUM_OF_PARSING_TYPES, NULL, 0 }
 	};
 
-    PRINT_DEBUG("%s; Entry\n", __FUNCTION__);
+    console_printf("%s; Entry\n", __FUNCTION__);
 
 	for (i=0; i < (int)numOfInterfaces; i++)
 	{
         if (!strncmp(radioInterface[i].operationMode, "AP", strnlen_s("AP", RSIZE_MAX_STR)))
         {
-            PRINT_DEBUG("%s; Getting BSSID for %s\n", __FUNCTION__, radioInterface[i].name);
+            console_printf("%s; Getting BSSID for %s\n", __FUNCTION__, radioInterface[i].name);
 
             ret = dwpal_wlan_vap_measurements_get(radioInterface[i].name, fieldsToParse);
 
             if (ret == DWPAL_FAILURE)
             {
-                PRINT_ERROR("%s; dwpal_wlan_vap_measurements_get error\n", __FUNCTION__);
+                console_printf("%s; dwpal_wlan_vap_measurements_get error\n", __FUNCTION__);
                 return DWPAL_FAILURE;
             }
             else
@@ -1273,7 +1264,7 @@ static int ifnameBssidToSteerToSet(int recordIdx, char *FrequencyBandToSteerTo)
 	int     i = 0;
     size_t  numOfInterfaces = sizeof(radioInterface) / sizeof(DwpalRadioInterface);
 
-	PRINT_DEBUG("%s; recordIdx= %d, FrequencyBandToSteerTo= '%s'\n", __FUNCTION__, recordIdx, FrequencyBandToSteerTo);
+	console_printf("%s; recordIdx= %d, FrequencyBandToSteerTo= '%s'\n", __FUNCTION__, recordIdx, FrequencyBandToSteerTo);
 
 	for (i=0; i < (int)numOfInterfaces; i++)
 	{
@@ -1284,7 +1275,7 @@ static int ifnameBssidToSteerToSet(int recordIdx, char *FrequencyBandToSteerTo)
 		}
 	}
 
-	PRINT_DEBUG("%s; [idx= %d] ifname= '%s', ifnameToSteerTo= '%s', BSSID= '%s'\n",
+	console_printf("%s; [idx= %d] ifname= '%s', ifnameToSteerTo= '%s', BSSID= '%s'\n",
 	       __FUNCTION__, recordIdx, radioInterface[recordIdx].name, radioInterface[recordIdx].ifnameToSteerTo, radioInterface[recordIdx].BSSID_ToSteerTo);
 
 	return DWPAL_SUCCESS;
@@ -1306,19 +1297,19 @@ static DWPAL_Ret interfaceBandSteerInfoSet(void)
 		{ NULL, NULL, DWPAL_NUM_OF_PARSING_TYPES, NULL, 0 }
 	};
 
-    PRINT_DEBUG("%s; Entry\n", __FUNCTION__);
+    console_printf("%s; Entry\n", __FUNCTION__);
 
 	for (i=0; i < (int)numOfInterfaces; i++)
 	{
         if (!strncmp(radioInterface[i].operationMode, "AP", strnlen_s("AP", RSIZE_MAX_STR)))
         {
-            PRINT_DEBUG("%s; Getting supported Frequency Band for %s\n", __FUNCTION__, radioInterface[i].name);
+            console_printf("%s; Getting supported Frequency Band for %s\n", __FUNCTION__, radioInterface[i].name);
 
             ret = dwpal_wlan_radio_info_get(radioInterface[i].name, fieldsToParse);
 
             if (ret == DWPAL_FAILURE)
             {
-                PRINT_ERROR("%s; GET_RADIO_INFO command send error\n", __FUNCTION__);
+                console_printf("%s; GET_RADIO_INFO command send error\n", __FUNCTION__);
                 return DWPAL_FAILURE;
             }
             else
@@ -1350,7 +1341,7 @@ static void allStationsDisconnect(char *ifname)
 	fout = popen(command, "r");
 	if (fout == NULL)
 	{
-		PRINT_ERROR("%s; popen of '%s' returned NULL ==> Abort!\n", __FUNCTION__, command);
+		console_printf("%s; popen of '%s' returned NULL ==> Abort!\n", __FUNCTION__, command);
 		return;
 	}
 
@@ -1362,12 +1353,12 @@ static void allStationsDisconnect(char *ifname)
 		}
         /* Make sure that the end of string will be '\0' instead of new-line ('\n') */
 		MACAddress[17] = '\0';
-		PRINT_DEBUG("%s; connected station ('%s') found ==> disconnect it!\n", __FUNCTION__, MACAddress);
+		console_printf("%s; connected station ('%s') found ==> disconnect it!\n", __FUNCTION__, MACAddress);
 
 		/* DISASSOCIATE any connected station */
 		if (dwpal_wlan_sta_disassociate(ifname, MACAddress) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("dwpal_wlan_sta_disassociate ERROR\n");
+			console_printf("dwpal_wlan_sta_disassociate ERROR\n");
 		}
 	}
 
@@ -1381,25 +1372,25 @@ static int ap_manager_lite_band_steering_init(void)
     size_t  numOfInterfaces = sizeof(radioInterface) / sizeof(DwpalRadioInterface);
 	int     i;
 
-	PRINT_DEBUG("%s; Entry\n", __FUNCTION__);
+	console_printf("%s; Entry\n", __FUNCTION__);
 
-	PRINT_DEBUG("%s; numOfActiveApInterfaces= %d\n", __FUNCTION__, numOfActiveApInterfaces);
+	console_printf("%s; numOfActiveApInterfaces= %d\n", __FUNCTION__, numOfActiveApInterfaces);
 	if (numOfActiveApInterfaces < 2)
 	{
-		PRINT_DEBUG("%s; Less than two APs (%d) are present ==> do NOT check for band-steering. Quit!\n\n", __FUNCTION__, numOfActiveApInterfaces);
+		console_printf("%s; Less than two APs (%d) are present ==> do NOT check for band-steering. Quit!\n\n", __FUNCTION__, numOfActiveApInterfaces);
 		return DWPAL_FAILURE;
 	}
 
     /* Set the band-steering data-base */
 	if (interfaceBandSteerInfoSet() == DWPAL_FAILURE)
 	{
-		PRINT_DEBUG("%s; create Band-Steering DB Info ERROR\n", __FUNCTION__);
+		console_printf("%s; create Band-Steering DB Info ERROR\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
     if (interfaceBSSIDInfoSet() == DWPAL_FAILURE)
     {
-        PRINT_DEBUG("%s; create BSSID Info ERROR\n", __FUNCTION__);
+        console_printf("%s; create BSSID Info ERROR\n", __FUNCTION__);
 		return DWPAL_FAILURE;
     }
 
@@ -1413,7 +1404,7 @@ static int ap_manager_lite_band_steering_init(void)
 
     if ( (support_2_4 == false) || (support_5 == false) )
 	{
-		PRINT_DEBUG("%s; one (or more) of the bands (2.4 & 5 GHz) are not available ==> do NOT check for band-steering. Quit!\n\n", __FUNCTION__);
+		console_printf("%s; one (or more) of the bands (2.4 & 5 GHz) are not available ==> do NOT check for band-steering. Quit!\n\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1426,7 +1417,7 @@ static int ap_manager_lite_band_steering_init(void)
 			{
 				if (ifnameBssidToSteerToSet(i, "5GHz") == DWPAL_FAILURE)
 				{
-					PRINT_DEBUG("%s; ifnameBssidToSteerToSet returned error ==> Quit!\n\n", __FUNCTION__);
+					console_printf("%s; ifnameBssidToSteerToSet returned error ==> Quit!\n\n", __FUNCTION__);
 					return DWPAL_FAILURE;
 				}
 
@@ -1438,7 +1429,7 @@ static int ap_manager_lite_band_steering_init(void)
 			{
 				if (ifnameBssidToSteerToSet(i, "2.4GHz") == DWPAL_FAILURE)
 				{
-					PRINT_DEBUG("%s; ifnameBssidToSteerToSet returned error ==> Quit!\n\n", __FUNCTION__);
+					console_printf("%s; ifnameBssidToSteerToSet returned error ==> Quit!\n\n", __FUNCTION__);
 					return DWPAL_FAILURE;
 				}
 
@@ -1458,7 +1449,7 @@ static void radioInterfaceDataBaseUpdate(void)
 	char    wpaCtrlName[DWPAL_WPA_CTRL_STRING_LENGTH];
     size_t  numOfInterfaces = sizeof(radioInterface) / sizeof(DwpalRadioInterface);
 
-    PRINT_DEBUG("%s; Entry\n", __FUNCTION__);
+    console_printf("%s; Entry\n", __FUNCTION__);
 
 	for (i=0; i < (int)numOfInterfaces; i++)
 	{
@@ -1466,7 +1457,7 @@ static void radioInterfaceDataBaseUpdate(void)
 		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", radioInterface[i].name);
 		if (access(wpaCtrlName, F_OK) == 0)
 		{
-			PRINT_DEBUG("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, radioInterface[i].name);
+			console_printf("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, radioInterface[i].name);
 			STRCPY_S(radioInterface[i].operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "AP");
 			numOfActiveApInterfaces++;
 		}
@@ -1475,7 +1466,7 @@ static void radioInterfaceDataBaseUpdate(void)
 			snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", radioInterface[i].name);
 			if (access(wpaCtrlName, F_OK) == 0)
 			{
-				PRINT_DEBUG("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, radioInterface[i].name);
+				console_printf("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, radioInterface[i].name);
 				STRCPY_S(radioInterface[i].operationMode, DWPAL_OPERATING_MODE_STRING_LENGTH, "STA");
 			}
 		}
@@ -1490,11 +1481,11 @@ static void dwpalBandSteeringAppStart(int signalStrengthThreshold_2_4, int signa
     bool    isInterfaceActive = false;
     size_t  numOfInterfaces = sizeof(radioInterface) / sizeof(DwpalRadioInterface);
 
-    PRINT_DEBUG("%s; Entry\n", __FUNCTION__);
+    console_printf("%s; Entry\n", __FUNCTION__);
 
 	if (pthread_mutex_init(&bandsteering_mutex, NULL))
     {
-        PRINT_ERROR("%s; mutex init failed\n", __FUNCTION__);
+        console_printf("%s; mutex init failed\n", __FUNCTION__);
         return;
     }
 
@@ -1505,24 +1496,24 @@ static void dwpalBandSteeringAppStart(int signalStrengthThreshold_2_4, int signa
 	{
 		if (!strncmp(radioInterface[i].operationMode, "NONE", strnlen_s("NONE", RSIZE_MAX_STR)))
 		{
-			PRINT_DEBUG("%s; radio interface '%s' not present ==> Continue\n", __FUNCTION__, radioInterface[i].name);
+			console_printf("%s; radio interface '%s' not present ==> Continue\n", __FUNCTION__, radioInterface[i].name);
 			continue;
 		}
 
 		if (!strncmp(radioInterface[i].operationMode, "STA", strnlen_s("STA", RSIZE_MAX_STR)))
 		{
-			PRINT_DEBUG("%s; radio interface '%s' not AP ==> Continue\n", __FUNCTION__, radioInterface[i].name);
+			console_printf("%s; radio interface '%s' not AP ==> Continue\n", __FUNCTION__, radioInterface[i].name);
 			continue;
 		}
 
         if (dwpal_ext_hostap_interface_attach(radioInterface[i].name, dwpalThreadSafeRadioInterfaceEventCallback) == DWPAL_FAILURE)
         {
-            PRINT_ERROR("%s; dwpal_ext_hostap_interface_attach returned ERROR (radio interface = '%s') ==> Abort!\n", __FUNCTION__, radioInterface[i].name);
+            console_printf("%s; dwpal_ext_hostap_interface_attach returned ERROR (radio interface = '%s') ==> Abort!\n", __FUNCTION__, radioInterface[i].name);
             continue;
         }
 
         isInterfaceActive = true;
-		PRINT_DEBUG("%s; supportedInterfaces[%d]= '%s'\n", __FUNCTION__, i, radioInterface[i].name);
+		console_printf("%s; supportedInterfaces[%d]= '%s'\n", __FUNCTION__, i, radioInterface[i].name);
 	}
 
     if (isInterfaceActive)
@@ -1535,11 +1526,11 @@ static void dwpalBandSteeringAppStart(int signalStrengthThreshold_2_4, int signa
             sleep(intervalInSeconds);
 
 			pthread_mutex_lock(&bandsteering_mutex);
-            PRINT_DEBUG("%s; %d seconds passed, check if band steering is needed\n", __FUNCTION__, intervalInSeconds);
+            console_printf("%s; %d seconds passed, check if band steering is needed\n", __FUNCTION__, intervalInSeconds);
 
             ap_manager_lite_band_steering_perform(signalStrengthThreshold_2_4, signalStrengthThreshold_5, intervalInSeconds, toleranceInSeconds, numOfTicksAllowedForSteering);
 
-            PRINT_DEBUG("%s; sleep %d seconds...\n\n", __FUNCTION__, intervalInSeconds);
+            console_printf("%s; sleep %d seconds...\n\n", __FUNCTION__, intervalInSeconds);
 			pthread_mutex_unlock(&bandsteering_mutex);
         }
     }
@@ -1549,7 +1540,7 @@ static void dwpalBandSteeringAppStart(int signalStrengthThreshold_2_4, int signa
         if (!strncmp(radioInterface[i].operationMode, "AP", strnlen_s("AP", RSIZE_MAX_STR)) &&
 				dwpal_ext_hostap_interface_detach(radioInterface[i].name) == DWPAL_FAILURE)
         {
-            PRINT_ERROR("%s; dwpal_ext_hostap_interface_detach returned ERROR (radio interface = '%s')\n", __FUNCTION__, radioInterface[i].name);
+            console_printf("%s; dwpal_ext_hostap_interface_detach returned ERROR (radio interface = '%s')\n", __FUNCTION__, radioInterface[i].name);
             continue;
         }
 	}
@@ -1571,7 +1562,7 @@ int main(int argc, char *argv[])
     Usage Format:   ./dwpal_band_steering &
                     ./dwpal_band_steering -30 -70 5 10 15 &
     */
-    PRINT_DEBUG("D-WPAL Band Steering App; argc= %d\n", argc);
+    console_printf("D-WPAL Band Steering App; argc= %d\n", argc);
 
     if (argc > 5)
 	{
@@ -1586,17 +1577,17 @@ int main(int argc, char *argv[])
         }
         else
         {
-            PRINT_DEBUG("D-WPAL Band Steering App; parameter #5 (numOfTicksAllowedForSteering) is missing" \
+            console_printf("D-WPAL Band Steering App; parameter #5 (numOfTicksAllowedForSteering) is missing" \
                             " ==> use default (%d) value\n", numOfTicksAllowedForSteering);
         }
     }
     else
     {
-        PRINT_DEBUG("D-WPAL Band Steering App; 4 mandatory parameters are not present" \
+        console_printf("D-WPAL Band Steering App; 4 mandatory parameters are not present" \
                         " ==> use default values:\n");
     }
 
-    PRINT_DEBUG("D-WPAL Band Steering App; signalStrengthThreshold_2_4= %d, signalStrengthThreshold_5= %d," \
+    console_printf("D-WPAL Band Steering App; signalStrengthThreshold_2_4= %d, signalStrengthThreshold_5= %d," \
                     " intervalInSeconds= %d, toleranceInSeconds= %d, numOfTicksAllowedForSteering= %d\n",
 			        signalStrengthThreshold_2_4, signalStrengthThreshold_5, intervalInSeconds,
                     toleranceInSeconds, numOfTicksAllowedForSteering);
@@ -1606,7 +1597,7 @@ int main(int argc, char *argv[])
 
 	stationsInfoListClear();
 
-    PRINT_DEBUG("D-WPAL Band Steering App; Exit!\n");
+    console_printf("D-WPAL Band Steering App; Exit!\n");
 
     return 0;
 }

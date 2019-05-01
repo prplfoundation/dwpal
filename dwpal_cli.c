@@ -35,17 +35,8 @@
 #endif
 #endif
 
-#if defined YOCTO_LOGGING
-#include "help_logging.h"
-#define PRINT_DEBUG(...)  LOGF_LOG_DEBUG(__VA_ARGS__)
-#define PRINT_ERROR(...)  LOGF_LOG_ERROR(__VA_ARGS__)
-#else
-#define PRINT_DEBUG(...)  printf(__VA_ARGS__)
-#define PRINT_ERROR(...)  printf(__VA_ARGS__)
-#endif
-
 #define NUM_OF_LISTENING_EVENTS 16
-
+extern int check_stats_cmd(int num_arg,char *cmd[]);
 DWPAL_Ret nlCliOneShotEventCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data);
 DWPAL_Ret nlCliEventCallback(char *ifname, int event, int subevent, size_t len, unsigned char *data);
 void dwpalCliCtrlEventCallback(char *msg, size_t len);
@@ -278,38 +269,38 @@ DWPAL_Ret nlCliOneShotEventCallback(char *ifname, int event, int subevent, size_
 				{
 					if (!strncmp(ifname, oneShotVAPName, 5))
 					{
-						PRINT_DEBUG("%s; LTQ_NL80211_VENDOR_EVENT_ASSERT_DUMP_READY received => exit!\n", __FUNCTION__);
+						console_printf("%s; LTQ_NL80211_VENDOR_EVENT_ASSERT_DUMP_READY received => exit!\n", __FUNCTION__);
 						exit(0);  /* Terminate the process */
 					}
 
-					PRINT_DEBUG("%s; LTQ_NL80211_VENDOR_EVENT_ASSERT_DUMP_READY received from %s " \
+					console_printf("%s; LTQ_NL80211_VENDOR_EVENT_ASSERT_DUMP_READY received from %s " \
 								"listening only to %s => ignore\n", __FUNCTION__, ifname, oneShotVAPName);
 				}
 				break;
 
 			default:
-				PRINT_DEBUG("%s; unsupported vendor sub event received; ifname= '%s', event= %d, subevent= %d (len= %d)\n",
+				console_printf("%s; unsupported vendor sub event received; ifname= '%s', event= %d, subevent= %d (len= %d)\n",
 				            __FUNCTION__, ifname, event, subevent, len);
 				break;
 		}
 	}
 	else
 	{
-		PRINT_DEBUG("%s; unsupported event (%d) received\n", __FUNCTION__, event);
+		console_printf("%s; unsupported event (%d) received\n", __FUNCTION__, event);
 	}
 
 	if ( (oneShotCommand[0] != '\0') && (opCodeForListener[0][0] == '\0') )
 	{
 		/* Not waiting for a specific event ==> solicited event received (due to 'get command') */
-		PRINT_DEBUG("%s; solicited event received => print first bytes (up to 10), and exit!\n", __FUNCTION__);
+		console_printf("%s; solicited event received => print first bytes (up to 10), and exit!\n", __FUNCTION__);
 
 		size_t i, lenToPrint = (len <= 10)? len : 10;
 
 		for (i=0; i < lenToPrint; i++)
 		{
-			PRINT_DEBUG(" 0x%x", data[i]);
+			console_printf(" 0x%x", data[i]);
 		}
-		PRINT_DEBUG("\n");
+		console_printf("\n");
 
 		exit(0);  /* Terminate the process */
 	}
@@ -322,13 +313,13 @@ DWPAL_Ret nlCliEventCallback(char *ifname, int event, int subevent, size_t len, 
 {
 	size_t i, lenToPrint = (len <= 10)? len : 10;
 
-	PRINT_DEBUG("%s Entry; ifname= '%s', event= %d, subevent= %d (len= %d)\n", __FUNCTION__, ifname, event, subevent, len);
+	console_printf("%s Entry; ifname= '%s', event= %d, subevent= %d (len= %d)\n", __FUNCTION__, ifname, event, subevent, len);
 
 	for (i=0; i < lenToPrint; i++)
 	{
-		PRINT_DEBUG(" 0x%x", data[i]);
+		console_printf(" 0x%x", data[i]);
 	}
-	PRINT_DEBUG("\n");
+	console_printf("\n");
 
 	return DWPAL_SUCCESS;
 }
@@ -338,13 +329,13 @@ static DWPAL_Ret nlCliCmdGetCallback(char *ifname, int event, int subevent, size
 {
 	size_t i, lenToPrint = (len <= 10)? len : 10;
 
-	PRINT_DEBUG("%s Entry; ifname= '%s', event= %d, subevent= %d (len= %d)\n", __FUNCTION__, ifname, event, subevent, len);
+	console_printf("%s Entry; ifname= '%s', event= %d, subevent= %d (len= %d)\n", __FUNCTION__, ifname, event, subevent, len);
 
 	for (i=0; i < lenToPrint; i++)
 	{
-		PRINT_DEBUG(" 0x%x", data[i]);
+		console_printf(" 0x%x", data[i]);
 	}
-	PRINT_DEBUG("\n");
+	console_printf("\n");
 
 	return DWPAL_SUCCESS;
 }
@@ -352,7 +343,7 @@ static DWPAL_Ret nlCliCmdGetCallback(char *ifname, int event, int subevent, size
 
 void dwpalCliCtrlEventCallback(char *msg, size_t len)
 {
-	PRINT_DEBUG("%s; len= %d, msg= '%s'\n", __FUNCTION__, len, msg);
+	console_printf("%s; len= %d, msg= '%s'\n", __FUNCTION__, len, msg);
 }
 
 
@@ -369,7 +360,7 @@ static void sigterm_handler(void)
 {
     isCliRunning = false;
     fclose(stdin);
-    PRINT_DEBUG("\n");
+    console_printf("\n");
 }
 
 
@@ -377,7 +368,7 @@ static void sigint_handler(void)
 {
     isCliRunning = false;
     fclose(stdin);
-    PRINT_DEBUG("\n");
+    console_printf("\n");
 }
 
 
@@ -403,7 +394,7 @@ static char *dupstr(const char *s)
 
 	if (!(r = (char *)malloc((size_t)(STRNLEN_S(s, 256) + 1))))
 	{
-		PRINT_DEBUG("Error: Out of memory. Exiting\n");
+		console_printf("Error: Out of memory. Exiting\n");
 		sigterm_handler();
 	}
 	else
@@ -457,16 +448,16 @@ static void dwpal_debug_cli_show_help(void)
 {
 	int i = 0;
 
-	PRINT_DEBUG("Supported commands:\n");
+	console_printf("Supported commands:\n");
 
 	/* run till the end of the list */
 	while (strncmp(s_arrDwpalCommands[i][0], "__END__", 7))
 	{
-		PRINT_DEBUG("%-26s - %s\n", s_arrDwpalCommands[i][0], s_arrDwpalCommands[i][1]);
+		console_printf("%-26s - %s\n", s_arrDwpalCommands[i][0], s_arrDwpalCommands[i][1]);
 		i++;
 	}
 
-	PRINT_DEBUG("\n");
+	console_printf("\n");
 }
 
 
@@ -500,7 +491,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 
 	if (fieldsToParse == NULL)
 	{
-		PRINT_ERROR("%s; input params error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; input params error ==> Abort!\n", __FUNCTION__);
 		return false;
 	}
 
@@ -510,14 +501,14 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 
 		if (isValid == false)
 		{  /* When parsing many lines, when a complete set of struct params is invalid, stop printing */
-			//PRINT_DEBUG("%s; Stop the trace (k= %d)\n", __FUNCTION__, k);
+			//console_printf("%s; Stop the trace (k= %d)\n", __FUNCTION__, k);
 			break;
 		}
 
 		if (totalSizeOfArg > 1)
 		{
 			snprintf(indexToPrint, sizeof(indexToPrint), "[%d] ", k);
-			//PRINT_DEBUG("%s; sizeof(indexToPrint)= %d, indexToPrint= '%s'\n", __FUNCTION__, sizeof(indexToPrint), indexToPrint);
+			//console_printf("%s; sizeof(indexToPrint)= %d, indexToPrint= '%s'\n", __FUNCTION__, sizeof(indexToPrint), indexToPrint);
 		}
 
 		isValid = false;
@@ -532,12 +523,12 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 
 			if (*(fieldsToParse[i].numOfValidArgs) == 0)
 			{
-				PRINT_ERROR("%s; %s%s=> No valid value!\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch);
+				console_printf("%s; %s%s=> No valid value!\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch);
 			}
 
 			/* set the output parameter - move it to the next array index (needed when parsing many lines) */
 			field = (void *)((unsigned int)fieldsToParse[i].field + k * sizeOfStruct);
-			//PRINT_DEBUG("%s; k= %d, field= 0x%x\n", __FUNCTION__, k, (unsigned int)field);
+			//console_printf("%s; k= %d, field= 0x%x\n", __FUNCTION__, k, (unsigned int)field);
 
 			switch (fieldsToParse[i].parsingType)
 			{
@@ -546,7 +537,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					{  /* Handle mandatory parameters WITHOUT any string-prefix */
 						if (field != NULL)
 						{
-							PRINT_DEBUG("%s; %s\n", __FUNCTION__, (char *)field);
+							console_printf("%s; %s\n", __FUNCTION__, (char *)field);
 						}
 					}
 					else
@@ -554,7 +545,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 						if (*(fieldsToParse[i].numOfValidArgs) > 0)
 						{
 							isValid = true;
-							PRINT_DEBUG("%s; %s%s %s\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, (char *)field);
+							console_printf("%s; %s%s %s\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, (char *)field);
 						}
 					}
 					break;
@@ -571,7 +562,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 						STRNCPY_S(fieldName, sizeof(fieldName), fieldsToParse[i].stringToSearch, fieldNameLength);
 						fieldName[fieldNameLength] = '\0';
 
-						PRINT_DEBUG("%s; %s%s[%d]= %s\n", __FUNCTION__, indexToPrint, fieldName, j, (char *)&(((char *)field)[j * HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH]));
+						console_printf("%s; %s%s[%d]= %s\n", __FUNCTION__, indexToPrint, fieldName, j, (char *)&(((char *)field)[j * HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH]));
 					}
 					break;
 
@@ -579,7 +570,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{
 						isValid = true;
-						PRINT_DEBUG("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((char *)field));
+						console_printf("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((char *)field));
 					}
 					break;
 
@@ -587,7 +578,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{
 						isValid = true;
-						PRINT_DEBUG("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((unsigned char *)field));
+						console_printf("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((unsigned char *)field));
 					}
 					break;
 
@@ -595,7 +586,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{
 						isValid = true;
-						PRINT_DEBUG("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((short int *)field));
+						console_printf("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((short int *)field));
 					}
 					break;
 
@@ -603,7 +594,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{
 						isValid = true;
-						PRINT_DEBUG("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((int *)field));
+						console_printf("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((int *)field));
 					}
 					break;
 
@@ -611,7 +602,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{
 						isValid = true;
-						PRINT_DEBUG("%s; %s%s %u\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((unsigned int *)field));
+						console_printf("%s; %s%s %u\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((unsigned int *)field));
 					}
 					break;
 
@@ -619,7 +610,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{
 						isValid = true;
-						PRINT_DEBUG("%s; %s%s %lld\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((long long int *)field));
+						console_printf("%s; %s%s %lld\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((long long int *)field));
 					}
 					break;
 
@@ -627,7 +618,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{
 						isValid = true;
-						PRINT_DEBUG("%s; %s%s %llu\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((unsigned long long int *)field));
+						console_printf("%s; %s%s %llu\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((unsigned long long int *)field));
 					}
 					break;
 
@@ -643,7 +634,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 						STRNCPY_S(fieldName, sizeof(fieldName), fieldsToParse[i].stringToSearch, fieldNameLength);
 						fieldName[fieldNameLength] = '\0';
 
-						PRINT_DEBUG("%s; %s%s[%d]= %d\n", __FUNCTION__, indexToPrint, fieldName, j, ((int *)field)[j]);
+						console_printf("%s; %s%s[%d]= %d\n", __FUNCTION__, indexToPrint, fieldName, j, ((int *)field)[j]);
 					}
 					break;
 
@@ -651,7 +642,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{
 						isValid = true;
-						PRINT_DEBUG("%s; %s%s 0x%x\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((int *)field));
+						console_printf("%s; %s%s 0x%x\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((int *)field));
 					}
 					break;
 
@@ -667,7 +658,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 						STRNCPY_S(fieldName, sizeof(fieldName), fieldsToParse[i].stringToSearch, fieldNameLength);
 						fieldName[fieldNameLength] = '\0';
 
-						PRINT_DEBUG("%s; %s%s[%d]= 0x%x\n", __FUNCTION__, indexToPrint, fieldName, j, ((int *)field)[j]);
+						console_printf("%s; %s%s[%d]= 0x%x\n", __FUNCTION__, indexToPrint, fieldName, j, ((int *)field)[j]);
 					}
 					break;
 
@@ -675,12 +666,12 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					if (*(fieldsToParse[i].numOfValidArgs) > 0)
 					{
 						isValid = true;
-						PRINT_DEBUG("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((bool *)field));
+						console_printf("%s; %s%s %d\n", __FUNCTION__, indexToPrint, fieldsToParse[i].stringToSearch, *((bool *)field));
 					}
 					break;
 
 				default:
-					PRINT_ERROR("%s; parsingType= %d; ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].parsingType);
+					console_printf("%s; parsingType= %d; ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].parsingType);
 					break;
 			}
 
@@ -708,11 +699,11 @@ static DWPAL_Ret dwpal_req_beacon_handle(void *localContext, char *VAPName, char
 		{ NULL, NULL, DWPAL_NUM_OF_PARSING_TYPES, NULL, 0 }
 	};
 
-	PRINT_DEBUG("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
+	console_printf("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
 
 	if (reply == NULL)
 	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
@@ -723,7 +714,7 @@ static DWPAL_Ret dwpal_req_beacon_handle(void *localContext, char *VAPName, char
 		snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s %s", cmd, fields[i]);
 	}
 
-	PRINT_DEBUG("%s; cmd= '%s'\n", __FUNCTION__, cmd);
+	console_printf("%s; cmd= '%s'\n", __FUNCTION__, cmd);
 
 	if (isDwpalExtenderMode)
 	{
@@ -736,21 +727,21 @@ static DWPAL_Ret dwpal_req_beacon_handle(void *localContext, char *VAPName, char
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; REQ_BEACON command send error\n", __FUNCTION__);
+		console_printf("%s; REQ_BEACON command send error\n", __FUNCTION__);
 	}
 	else
 	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+		console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
 		if (resultsPrint(fieldsToParse, 1, sizeof(DWPAL_radio_info_get)) == false)
 		{
-			PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		}
 
 		/* Example for return value:
@@ -780,11 +771,11 @@ static DWPAL_Ret dwpal_get_sta_measurements_handle(void *localContext, char *VAP
 		{ NULL, NULL, DWPAL_NUM_OF_PARSING_TYPES, NULL, 0 }
 	};
 
-	PRINT_DEBUG("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
+	console_printf("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
 
 	if (reply == NULL)
 	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
@@ -802,21 +793,21 @@ static DWPAL_Ret dwpal_get_sta_measurements_handle(void *localContext, char *VAP
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; GET_STA_MEASUREMENTS command send error\n", __FUNCTION__);
+		console_printf("%s; GET_STA_MEASUREMENTS command send error\n", __FUNCTION__);
 	}
 	else
 	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+		console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
 		if (resultsPrint(fieldsToParse, 1, sizeof(DWPAL_radio_info_get)) == false)
 		{
-			PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		}
 
 		/* Example for return value:
@@ -871,17 +862,17 @@ static DWPAL_Ret dwpal_get_vap_measurements_handle(void *localContext, char *VAP
 		{ NULL, NULL, DWPAL_NUM_OF_PARSING_TYPES, NULL, 0 }
 	};
 
-	PRINT_DEBUG("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
+	console_printf("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
 
 	if (reply == NULL)
 	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
 
 	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "GET_VAP_MEASUREMENTS %s", VAPName);
-	PRINT_DEBUG("%s; cmd= '%s'\n", __FUNCTION__, cmd);
+	console_printf("%s; cmd= '%s'\n", __FUNCTION__, cmd);
 
 	if (isDwpalExtenderMode)
 	{
@@ -894,21 +885,21 @@ static DWPAL_Ret dwpal_get_vap_measurements_handle(void *localContext, char *VAP
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; GET_VAP_MEASUREMENTS command send error\n", __FUNCTION__);
+		console_printf("%s; GET_VAP_MEASUREMENTS command send error\n", __FUNCTION__);
 	}
 	else
 	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+		console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
 		if (resultsPrint(fieldsToParse, 1, sizeof(DWPAL_radio_info_get)) == false)
 		{
-			PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		}
 
 		/* Example for return value:
@@ -952,11 +943,11 @@ static DWPAL_Ret dwpal_get_restricted_channels_handle(void *localContext, char *
 	size_t    replyLen = HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char) - 1;
 	DWPAL_Ret ret;
 
-	PRINT_DEBUG("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
+	console_printf("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
 
 	if (reply == NULL)
 	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
@@ -972,11 +963,11 @@ static DWPAL_Ret dwpal_get_restricted_channels_handle(void *localContext, char *
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; GET_RESTRICTED_CHANNELS command send error\n", __FUNCTION__);
+		console_printf("%s; GET_RESTRICTED_CHANNELS command send error\n", __FUNCTION__);
 	}
 	else
 	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+		console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		/* Note: "reply" itself is already in the needed parsed format! */
 
@@ -1012,11 +1003,11 @@ static DWPAL_Ret dwpal_get_failsafe_channel_handle(void *localContext, char *VAP
 		{ NULL, NULL, DWPAL_NUM_OF_PARSING_TYPES, NULL, 0 }
 	};
 
-	PRINT_DEBUG("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
+	console_printf("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
 
 	if (reply == NULL)
 	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
@@ -1032,24 +1023,24 @@ static DWPAL_Ret dwpal_get_failsafe_channel_handle(void *localContext, char *VAP
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; GET_FAILSAFE_CHAN command send error\n", __FUNCTION__);
+		console_printf("%s; GET_FAILSAFE_CHAN command send error\n", __FUNCTION__);
 	}
 	else
 	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+		console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
 		freq = atoi(get_failsafe_channel.freq);
-		PRINT_DEBUG("%s; freq= %d\n", __FUNCTION__, freq);
+		console_printf("%s; freq= %d\n", __FUNCTION__, freq);
 
 		if (resultsPrint(fieldsToParse, 1, sizeof(DWPAL_radio_info_get)) == false)
 		{
-			PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		}
 
 		/* Example for return value:
@@ -1102,11 +1093,11 @@ static DWPAL_Ret dwpal_radio_info_handle(void *localContext, char *VAPName, bool
 		{ NULL, NULL, DWPAL_NUM_OF_PARSING_TYPES, NULL, 0 }
 	};
 
-	PRINT_DEBUG("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
+	console_printf("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
 
 	if (reply == NULL)
 	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
@@ -1122,23 +1113,23 @@ static DWPAL_Ret dwpal_radio_info_handle(void *localContext, char *VAPName, bool
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; GET_RADIO_INFO command send error\n", __FUNCTION__);
+		console_printf("%s; GET_RADIO_INFO command send error\n", __FUNCTION__);
 	}
 	else
 	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+		console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
-		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+		console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 		if (resultsPrint(fieldsToParse, 1, sizeof(DWPAL_radio_info_get)) == false)
 		{
-			PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		}
 
 		/* Example for return value:
@@ -1199,11 +1190,11 @@ static DWPAL_Ret dwpal_acs_report_handle(void *localContext, char *VAPName, bool
 		{ NULL, NULL, DWPAL_NUM_OF_PARSING_TYPES, NULL, 0 }
 	};
 
-	PRINT_DEBUG("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
+	console_printf("%s; VAPName= '%s', isDwpalExtenderMode= %d\n", __FUNCTION__, VAPName, isDwpalExtenderMode);
 
 	if (reply == NULL)
 	{
-		PRINT_ERROR("%s; malloc error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 	memset((void *)reply, '\0', HOSTAPD_TO_DWPAL_MSG_LENGTH);  /* Clear the output buffer */
@@ -1219,23 +1210,23 @@ static DWPAL_Ret dwpal_acs_report_handle(void *localContext, char *VAPName, bool
 
 	if (ret == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; GET_ACS_REPORT command send error\n", __FUNCTION__);
+		console_printf("%s; GET_ACS_REPORT command send error\n", __FUNCTION__);
 	}
 	else
 	{
-		PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+		console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 
 		if ((ret = dwpal_string_to_struct_parse(reply, replyLen, fieldsToParse)) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
-		PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+		console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 		if (resultsPrint(fieldsToParse, sizeof(acs_report) / sizeof(DWPAL_acs_report_get), sizeof(DWPAL_acs_report_get)) == false)
 		{
-			PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		}
 
 		/* Example for return value:
@@ -1275,15 +1266,15 @@ static DWPAL_Ret dwpal_unconnected_sta_rssi_event_parse(char *msg, size_t msgLen
 
 	if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 	if (resultsPrint(fieldsToParse, 1, 0) == false)
 	{
-		PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1321,15 +1312,15 @@ static DWPAL_Ret dwpal_rrm_beacon_rep_received_event_parse(char *msg, size_t msg
 
 	if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 	if (resultsPrint(fieldsToParse, 1, 0) == false)
 	{
-		PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1358,15 +1349,15 @@ static DWPAL_Ret dwpal_dfs_nop_finished_event_parse(char *msg, size_t msgLen)
 
 	if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 	if (resultsPrint(fieldsToParse, 1, 0) == false)
 	{
-		PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1396,15 +1387,15 @@ static DWPAL_Ret dwpal_dfs_cac_completed_event_parse(char *msg, size_t msgLen)
 
 	if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 	if (resultsPrint(fieldsToParse, 1, 0) == false)
 	{
-		PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1432,15 +1423,15 @@ static DWPAL_Ret dwpal_bss_tm_resp_event_parse(char *msg, size_t msgLen)
 
 	if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 	if (resultsPrint(fieldsToParse, 1, 0) == false)
 	{
-		PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1472,15 +1463,15 @@ static DWPAL_Ret dwpal_csa_completed_event_parse(char *msg, size_t msgLen)
 
 	if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 	if (resultsPrint(fieldsToParse, 1, 0) == false)
 	{
-		PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1512,15 +1503,15 @@ static DWPAL_Ret dwpal_ap_csa_finished_channel_int_event_parse(char *msg, size_t
 
 	if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 	if (resultsPrint(fieldsToParse, 1, 0) == false)
 	{
-		PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1552,15 +1543,15 @@ static DWPAL_Ret dwpal_ap_csa_finished_event_parse(char *msg, size_t msgLen)
 
 	if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 	if (resultsPrint(fieldsToParse, 1, 0) == false)
 	{
-		PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1587,15 +1578,15 @@ static DWPAL_Ret dwpal_ap_sta_disconnected_event_parse(char *msg, size_t msgLen)
 
 	if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 	if (resultsPrint(fieldsToParse, 1, 0) == false)
 	{
-		PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1635,15 +1626,15 @@ static DWPAL_Ret dwpal_ap_sta_connected_event_parse(char *msg, size_t msgLen)
 
 	if ((ret = dwpal_string_to_struct_parse(msg, msgLen, fieldsToParse)) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; dwpal_string_to_struct_parse ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
+	console_printf("%s; dwpal_string_to_struct_parse() ret= %d\n", __FUNCTION__, ret);
 
 	if (resultsPrint(fieldsToParse, 1, 0) == false)
 	{
-		PRINT_ERROR("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; resultsPrint ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1655,14 +1646,14 @@ static int dwpalOneShotEventCallback(char *radioName, char *opCode, char *msg, s
 {
 	int i;
 
-	PRINT_DEBUG("%s; radioName= '%s', opCode= '%s', msgStringLen= %d, msg= '%s' (numOfListeningEvents= %d)\n",
+	console_printf("%s; radioName= '%s', opCode= '%s', msgStringLen= %d, msg= '%s' (numOfListeningEvents= %d)\n",
 	            __FUNCTION__, radioName, opCode, msgStringLen, msg, numOfListeningEvents);
 
 	for (i=0; i < numOfListeningEvents; i++)
 	{
 		if (!strncmp(opCode, opCodeForListener[i], DWPAL_OPCODE_STRING_LENGTH))
 		{
-			PRINT_DEBUG("%s; radioName= '%s', opCode= '%s' received ==> Exit!!!\n", __FUNCTION__, radioName, opCode);
+			console_printf("%s; radioName= '%s', opCode= '%s' received ==> Exit!!!\n", __FUNCTION__, radioName, opCode);
 			isContinueListening = false;
 			break;
 		}
@@ -1674,7 +1665,7 @@ static int dwpalOneShotEventCallback(char *radioName, char *opCode, char *msg, s
 
 static int dwpalExtEventCallback(char *radioName, char *opCode, char *msg, size_t msgStringLen)
 {
-	PRINT_DEBUG("%s; radioName= '%s', opCode= '%s', msgStringLen= %d, msg= '%s'\n", __FUNCTION__, radioName, opCode, msgStringLen, msg);
+	console_printf("%s; radioName= '%s', opCode= '%s', msgStringLen= %d, msg= '%s'\n", __FUNCTION__, radioName, opCode, msgStringLen, msg);
 	return 0;
 }
 
@@ -1685,7 +1676,7 @@ static DWPAL_Ret interfaceReset(DwpalService *dwpalServiceLocal, int idx)
 	{
 		if (dwpal_hostap_interface_detach(&context[idx]) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_hostap_interface_detach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalServiceLocal->radioName);
+			console_printf("%s; dwpal_hostap_interface_detach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalServiceLocal->radioName);
 			return DWPAL_FAILURE;
 		}
 	}
@@ -1693,7 +1684,7 @@ static DWPAL_Ret interfaceReset(DwpalService *dwpalServiceLocal, int idx)
 	{
 		if (dwpal_driver_nl_detach(&context[idx] /*IN/OUT*/) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_driver_nl_detach returned ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_driver_nl_detach returned ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
@@ -1706,11 +1697,11 @@ static DWPAL_Ret interfaceSet(DwpalService *dwpalServiceLocal, int idx)
 {
 	DWPAL_wpaCtrlEventCallback wpaCtrlEventCallback = NULL;
 
-	PRINT_DEBUG("%s Entry; idx= %d\n", __FUNCTION__, idx);
+	console_printf("%s Entry; idx= %d\n", __FUNCTION__, idx);
 
 	if (!strncmp(dwpalServiceLocal->interfaceType, "hostap", 7))
 	{
-		PRINT_DEBUG("%s Entry; idx= %d ==> hostapd\n", __FUNCTION__, idx);
+		console_printf("%s Entry; idx= %d ==> hostapd\n", __FUNCTION__, idx);
 
 		if (!strncmp(dwpalServiceLocal->serviceName, "TWO_WAY", 10))
 		{
@@ -1719,16 +1710,16 @@ static DWPAL_Ret interfaceSet(DwpalService *dwpalServiceLocal, int idx)
 
 		if (dwpal_hostap_interface_attach(&context[idx] /*OUT*/, dwpalServiceLocal->radioName, wpaCtrlEventCallback) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_hostap_interface_attach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalServiceLocal->radioName);
+			console_printf("%s; dwpal_hostap_interface_attach (radioName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, dwpalServiceLocal->radioName);
 			return DWPAL_FAILURE;
 		}
 	}
 	else if (!strncmp(dwpalServiceLocal->interfaceType, "Driver", 7))
 	{
-		PRINT_DEBUG("%s Entry; idx= %d ==> Driver\n", __FUNCTION__, idx);
+		console_printf("%s Entry; idx= %d ==> Driver\n", __FUNCTION__, idx);
 		if (dwpal_driver_nl_attach(&context[idx] /*OUT*/) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_driver_nl_attach returned ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_driver_nl_attach returned ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
@@ -1739,92 +1730,92 @@ static DWPAL_Ret interfaceSet(DwpalService *dwpalServiceLocal, int idx)
 
 static DWPAL_Ret hostapdEventHandle(char *opCode, char *msg, size_t msgLen)
 {
-	//PRINT_DEBUG("%s; opCode= '%s'; msgLen= %d\n", __FUNCTION__, opCode, msgLen);
+	//console_printf("%s; opCode= '%s'; msgLen= %d\n", __FUNCTION__, opCode, msgLen);
 
 	if (!strncmp(opCode, "AP-STA-CONNECTED", STRNLEN_S("AP-STA-CONNECTED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
-		//PRINT_DEBUG("%s; msg= '%s'\n", __FUNCTION__, msg);
+		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_ap_sta_connected_event_parse(msg, msgLen) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_ap_sta_connected_event_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_ap_sta_connected_event_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
 	else if (!strncmp(opCode, "AP-STA-DISCONNECTED", STRNLEN_S("AP-STA-DISCONNECTED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
-		//PRINT_DEBUG("%s; msg= '%s'\n", __FUNCTION__, msg);
+		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_ap_sta_disconnected_event_parse(msg, msgLen) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_ap_sta_disconnected_event_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_ap_sta_disconnected_event_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
 	else if (!strncmp(opCode, "AP-CSA-FINISHED", STRNLEN_S("AP-CSA-FINISHED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
-		//PRINT_DEBUG("%s; msg= '%s'\n", __FUNCTION__, msg);
+		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_ap_csa_finished_event_parse(msg, msgLen) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_ap_csa_finished_event_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_ap_csa_finished_event_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
 		if (dwpal_ap_csa_finished_channel_int_event_parse(msg, msgLen) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_ap_csa_finished_channel_int_event_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_ap_csa_finished_channel_int_event_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
 	else if (!strncmp(opCode, "ACS-COMPLETED", STRNLEN_S("ACS-COMPLETED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
-		//PRINT_DEBUG("%s; msg= '%s'\n", __FUNCTION__, msg);
+		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_csa_completed_event_parse(msg, msgLen) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_csa_completed_event_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_csa_completed_event_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
 	else if (!strncmp(opCode, "BSS-TM-RESP", STRNLEN_S("BSS-TM-RESP", DWPAL_GENERAL_STRING_LENGTH)))
 	{
-		//PRINT_DEBUG("%s; msg= '%s'\n", __FUNCTION__, msg);
+		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_bss_tm_resp_event_parse(msg, msgLen) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_bss_tm_resp_event_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_bss_tm_resp_event_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
 	else if (!strncmp(opCode, "DFS-CAC-COMPLETED", STRNLEN_S("DFS-CAC-COMPLETED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
-		//PRINT_DEBUG("%s; msg= '%s'\n", __FUNCTION__, msg);
+		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_dfs_cac_completed_event_parse(msg, msgLen) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_dfs_cac_completed_event_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_dfs_cac_completed_event_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
 	else if (!strncmp(opCode, "DFS-NOP-FINISHED", STRNLEN_S("DFS-NOP-FINISHED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
-		//PRINT_DEBUG("%s; msg= '%s'\n", __FUNCTION__, msg);
+		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_dfs_nop_finished_event_parse(msg, msgLen) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_dfs_nop_finished_event_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_dfs_nop_finished_event_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
 	else if (!strncmp(opCode, "RRM-BEACON-REP-RECEIVED", STRNLEN_S("RRM-BEACON-REP-RECEIVED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
-		//PRINT_DEBUG("%s; msg= '%s'\n", __FUNCTION__, msg);
+		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_rrm_beacon_rep_received_event_parse(msg, msgLen) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_rrm_beacon_rep_received_event_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_rrm_beacon_rep_received_event_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
 	else if (!strncmp(opCode, "UNCONNECTED-STA-RSSI", STRNLEN_S("UNCONNECTED-STA-RSSI", DWPAL_GENERAL_STRING_LENGTH)))
 	{
-		//PRINT_DEBUG("%s; msg= '%s'\n", __FUNCTION__, msg);
+		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_unconnected_sta_rssi_event_parse(msg, msgLen) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_unconnected_sta_rssi_event_parse ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_unconnected_sta_rssi_event_parse ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 	}
@@ -1844,7 +1835,7 @@ static void *listenerThreadStart(void *temp)
 
 	(void)temp;
 
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
 	/* Receive the msg */
 	while (true)
@@ -1858,7 +1849,7 @@ static void *listenerThreadStart(void *temp)
 			{
 				if (dwpal_hostap_event_fd_get(context[i], &dwpalService[i].fd) == DWPAL_FAILURE)
 				{
-					/*PRINT_ERROR("%s; dwpal_hostap_event_fd_get returned error ==> cont. (serviceName= '%s', radioName= '%s')\n",
+					/*console_printf("%s; dwpal_hostap_event_fd_get returned error ==> cont. (serviceName= '%s', radioName= '%s')\n",
 					       __FUNCTION__, dwpalService[i].serviceName, dwpalService[i].radioName);*/
 					continue;
 				}
@@ -1873,25 +1864,25 @@ static void *listenerThreadStart(void *temp)
 			{
 				if (dwpal_driver_nl_fd_get(context[i], &dwpalService[i].fd, &dwpalService[i].fdCmdGet) == DWPAL_FAILURE)
 				{
-					/*PRINT_DEBUG("%s; dwpal_driver_nl_fd_get returned error ==> cont. (serviceName= '%s', radioName= '%s')\n",
+					/*console_printf("%s; dwpal_driver_nl_fd_get returned error ==> cont. (serviceName= '%s', radioName= '%s')\n",
 					       __FUNCTION__, dwpalService[i].serviceName, dwpalService[i].radioName);*/
 					continue;
 				}
 
-				//PRINT_DEBUG("%s; [BEFORE-Driver] highestValFD= %d\n", __FUNCTION__, highestValFD);
+				//console_printf("%s; [BEFORE-Driver] highestValFD= %d\n", __FUNCTION__, highestValFD);
 				if (dwpalService[i].fd > 0)
 				{
 					FD_SET(dwpalService[i].fd, &rfds);
 					highestValFD = (dwpalService[i].fd > highestValFD)? dwpalService[i].fd : highestValFD;  /* find the highest value fd */
 				}
-				//PRINT_DEBUG("%s; [AFTER-Driver] highestValFD= %d\n", __FUNCTION__, highestValFD);
+				//console_printf("%s; [AFTER-Driver] highestValFD= %d\n", __FUNCTION__, highestValFD);
 			}
 		}
 
-		//PRINT_DEBUG("%s; highestValFD= %d\n", __FUNCTION__, highestValFD);
+		//console_printf("%s; highestValFD= %d\n", __FUNCTION__, highestValFD);
 		if (highestValFD == 0)
 		{
-			PRINT_ERROR("%s; there is no active hostapd/supplicant ==> cont...\n", __FUNCTION__);
+			console_printf("%s; there is no active hostapd/supplicant ==> cont...\n", __FUNCTION__);
 			break;
 		}
 
@@ -1902,7 +1893,7 @@ static void *listenerThreadStart(void *temp)
 		ret = select(highestValFD + 1, &rfds, NULL, NULL, &tv);
 		if (ret < 0)
 		{
-			PRINT_DEBUG("%s; select() return value= %d ==> cont...; errno= %d ('%s')\n", __FUNCTION__, ret, errno, strerror(errno));
+			console_printf("%s; select() return value= %d ==> cont...; errno= %d ('%s')\n", __FUNCTION__, ret, errno, strerror(errno));
 			continue;
 		}
 
@@ -1914,13 +1905,13 @@ static void *listenerThreadStart(void *temp)
 				{
 					if (FD_ISSET(dwpalService[i].fd, &rfds))
 					{
-						/*PRINT_DEBUG("%s; event received; interfaceType= '%s', radioName= '%s', serviceName= '%s'\n",
+						/*console_printf("%s; event received; interfaceType= '%s', radioName= '%s', serviceName= '%s'\n",
 						       __FUNCTION__, dwpalService[i].interfaceType, dwpalService[i].radioName, dwpalService[i].serviceName);*/
 
 						msg = (char *)malloc((size_t)(HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char)));
 						if (msg == NULL)
 						{
-							PRINT_ERROR("%s; invalid input ('msg') parameter ==> Abort!\n", __FUNCTION__);
+							console_printf("%s; invalid input ('msg') parameter ==> Abort!\n", __FUNCTION__);
 							break;
 						}
 
@@ -1930,12 +1921,12 @@ static void *listenerThreadStart(void *temp)
 
 						if (dwpal_hostap_event_get(context[i], msg /*OUT*/, &msgLen /*IN/OUT*/, opCode /*OUT*/) == DWPAL_FAILURE)
 						{
-							PRINT_ERROR("%s; dwpal_hostap_event_get ERROR; radioName= '%s', serviceName= '%s', msgLen= %d\n",
+							console_printf("%s; dwpal_hostap_event_get ERROR; radioName= '%s', serviceName= '%s', msgLen= %d\n",
 							       __FUNCTION__, dwpalService[i].radioName, dwpalService[i].serviceName, msgLen);
 						}
 						else
 						{
-							//PRINT_DEBUG("%s; msgLen= %d, msg= '%s'\n", __FUNCTION__, msgLen, msg);
+							//console_printf("%s; msgLen= %d, msg= '%s'\n", __FUNCTION__, msgLen, msg);
 #if 0
 							{
 								static int count = 0;
@@ -1997,12 +1988,12 @@ static void *listenerThreadStart(void *temp)
 #endif
 
 							msgStringLen = STRNLEN_S(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
-							//PRINT_DEBUG("%s; opCode= '%s', msg= '%s'\n", __FUNCTION__, opCode, msg);
+							//console_printf("%s; opCode= '%s', msg= '%s'\n", __FUNCTION__, opCode, msg);
 							if (strncmp(opCode, "", 1))
 							{
 								if (hostapdEventHandle(opCode, msg, msgStringLen) == DWPAL_FAILURE)
 								{
-									PRINT_ERROR("%s; hostapdEventHandle (opCode= '%s') returned ERROR\n", __FUNCTION__, opCode);
+									console_printf("%s; hostapdEventHandle (opCode= '%s') returned ERROR\n", __FUNCTION__, opCode);
 								}
 							}
 						}
@@ -2015,22 +2006,22 @@ static void *listenerThreadStart(void *temp)
 			{
 				if ( (dwpalService[i].fd > 0) && (FD_ISSET(dwpalService[i].fd, &rfds)) )
 				{
-					/*PRINT_DEBUG("%s; [Driver] event received; interfaceType= '%s', radioName= '%s', serviceName= '%s', dwpalService[%d].fd= %d\n",
+					/*console_printf("%s; [Driver] event received; interfaceType= '%s', radioName= '%s', serviceName= '%s', dwpalService[%d].fd= %d\n",
 						   __FUNCTION__, dwpalService[i].interfaceType, dwpalService[i].radioName, dwpalService[i].serviceName, i, dwpalService[i].fd);*/
 
 					if (dwpal_driver_nl_msg_get(context[i], DWPAL_NL_EVENT_GET, nlCliEventCallback) == DWPAL_FAILURE)
 					{
-						PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR; serviceName= '%s'\n", __FUNCTION__, dwpalService[i].serviceName);
+						console_printf("%s; dwpal_driver_nl_msg_get ERROR; serviceName= '%s'\n", __FUNCTION__, dwpalService[i].serviceName);
 					}
 				}
 				else if ( (dwpalService[i].fdCmdGet > 0) && (FD_ISSET(dwpalService[i].fdCmdGet, &rfds)) )
 				{
-					/*PRINT_DEBUG("%s; [Driver] event received; interfaceType= '%s', radioName= '%s', serviceName= '%s', dwpalService[%d].fdCmdGet= %d\n",
+					/*console_printf("%s; [Driver] event received; interfaceType= '%s', radioName= '%s', serviceName= '%s', dwpalService[%d].fdCmdGet= %d\n",
 						   __FUNCTION__, dwpalService[i].interfaceType, dwpalService[i].radioName, dwpalService[i].serviceName, i, dwpalService[i].fdCmdGet);*/
 
 					if (dwpal_driver_nl_msg_get(context[i], DWPAL_NL_CMD_GET, nlCliCmdGetCallback) == DWPAL_FAILURE)
 					{
-						PRINT_ERROR("%s; dwpal_driver_nl_msg_get ERROR; serviceName= '%s'\n", __FUNCTION__, dwpalService[i].serviceName);
+						console_printf("%s; dwpal_driver_nl_msg_get ERROR; serviceName= '%s'\n", __FUNCTION__, dwpalService[i].serviceName);
 					}
 				}
 			}
@@ -2050,32 +2041,32 @@ static DWPAL_Ret listenerThreadCreate(void)
 	//void           *res;
 	pthread_t      thread_id;
 
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
 	ret = pthread_attr_init(&attr);
 	if (ret != 0)
 	{
-		PRINT_ERROR("%s; pthread_attr_init ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+		console_printf("%s; pthread_attr_init ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 		return DWPAL_FAILURE;
 	}
 
 	ret = pthread_attr_setstacksize(&attr, stack_size);
 	if (ret == -1)
 	{
-		PRINT_ERROR("%s; pthread_attr_setstacksize ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+		console_printf("%s; pthread_attr_setstacksize ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 		dwpalRet = DWPAL_FAILURE;
 	}
 
 	if (dwpalRet == DWPAL_SUCCESS)
 	{
-		PRINT_DEBUG("%s; call pthread_create\n", __FUNCTION__);
+		console_printf("%s; call pthread_create\n", __FUNCTION__);
 		ret = pthread_create(&thread_id, &attr, &listenerThreadStart, NULL /*can be used to send params*/);
 		if (ret != 0)
 		{
-			PRINT_ERROR("%s; pthread_create ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+			console_printf("%s; pthread_create ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 			dwpalRet = DWPAL_FAILURE;
 		}
-		PRINT_DEBUG("%s; return from call pthread_create, ret= %d\n", __FUNCTION__, ret);
+		console_printf("%s; return from call pthread_create, ret= %d\n", __FUNCTION__, ret);
 
 		if (dwpalRet == DWPAL_SUCCESS)
 		{
@@ -2086,7 +2077,7 @@ static DWPAL_Ret listenerThreadCreate(void)
 			ret = pthread_join(thread_id, &res);
 			if (ret != 0)
 			{
-				PRINT_ERROR("%s; pthread_join ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+				console_printf("%s; pthread_join ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 				dwpalRet = DWPAL_FAILURE;
 			}
 
@@ -2099,7 +2090,7 @@ static DWPAL_Ret listenerThreadCreate(void)
 	ret = pthread_attr_destroy(&attr);
 	if (ret != 0)
 	{
-		PRINT_ERROR("%s; pthread_attr_destroy ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+		console_printf("%s; pthread_attr_destroy ERROR (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 		dwpalRet = DWPAL_FAILURE;
 	}
 
@@ -2116,14 +2107,14 @@ static void dwpal_init(void)
 	{
 		if (interfaceSet(&dwpalService[i], i) == DWPAL_SUCCESS)
 		{
-			PRINT_DEBUG("%s; interfaceSet (radioName= '%s', serviceName= '%s') successfully\n", __FUNCTION__, dwpalService[i].radioName, dwpalService[i].serviceName);
+			console_printf("%s; interfaceSet (radioName= '%s', serviceName= '%s') successfully\n", __FUNCTION__, dwpalService[i].radioName, dwpalService[i].serviceName);
 		}
 	}
 
 	/* Start the listener thread */
 	if (listenerThreadCreate() == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; listener thread failed ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; listener thread failed ==> Abort!\n", __FUNCTION__);
 		return;
 	}
 }
@@ -2141,7 +2132,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 	unsigned char                   vendorData[128] = "\0";
 	size_t                          vendorDataSize = 0;
 
-	//PRINT_DEBUG("%s; strLine= '%s'; \n", __FUNCTION__, strLine);
+	//console_printf("%s; strLine= '%s'; \n", __FUNCTION__, strLine);
 
 	if (!strncmp(strLine, "", 1))
 		return;
@@ -2165,10 +2156,10 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 	if (opCode == NULL)
 	{
-		PRINT_ERROR("%s; opCode is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; opCode is NULL ==> Abort!\n", __FUNCTION__);
 		return;
 	}
-	//PRINT_DEBUG("%s; opCode= '%s'\n", __FUNCTION__, opCode);
+	//console_printf("%s; opCode= '%s'\n", __FUNCTION__, opCode);
 
 	/* Exit CLI */
     if (!strncmp(opCode, "exit", 4) || !strncmp(opCode, "quit", 4))
@@ -2187,7 +2178,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 	if (!strncmp(opCode, "DWPAL_INIT", STRNLEN_S("DWPAL_INIT", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		/* Format: DWPAL_INIT */
-		PRINT_DEBUG("%s; call dwpal_init()\n", __FUNCTION__);
+		console_printf("%s; call dwpal_init()\n", __FUNCTION__);
 		isDwpalExtenderMode = false;
 		dwpal_init();
 	}
@@ -2196,7 +2187,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 		/* Format: DWPAL_EXT_DRIVER_NL_IF_ATTACH */
 		if (dwpal_ext_driver_nl_attach(nlCliEventCallback) == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_ext_driver_nl_attach returned ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_ext_driver_nl_attach returned ERROR ==> Abort!\n", __FUNCTION__);
 		}
 		else
 		{
@@ -2208,7 +2199,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 		/* Format: DWPAL_EXT_DRIVER_NL_IF_DETACH */
 		if (dwpal_ext_driver_nl_detach() == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; dwpal_ext_driver_nl_detach returned ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; dwpal_ext_driver_nl_detach returned ERROR ==> Abort!\n", __FUNCTION__);
 		}
 		else
 		{
@@ -2220,10 +2211,10 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 		VAPName = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
 		if (VAPName == NULL)
 		{
-			PRINT_ERROR("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
 			return;
 		}
-		PRINT_DEBUG("%s; VAPName= '%s'\n", __FUNCTION__, VAPName);
+		console_printf("%s; VAPName= '%s'\n", __FUNCTION__, VAPName);
 
 		if (VAPName != NULL)
 		{
@@ -2243,14 +2234,14 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 				if ((idx = interfaceIndexGet("hostap", VAPName)) == -1)
 				{
-					PRINT_ERROR("%s; interfaceIndexGet (radioName= '%s', serviceName= 'Both') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
+					console_printf("%s; interfaceIndexGet (radioName= '%s', serviceName= 'Both') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 					return;
 				}
 
 				hostapCmdOpcode = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
 				if (hostapCmdOpcode == NULL)
 				{
-					PRINT_ERROR("%s; hostapCmdOpcode is NULL ==> Abort!\n", __FUNCTION__);
+					console_printf("%s; hostapCmdOpcode is NULL ==> Abort!\n", __FUNCTION__);
 					return;
 				}
 
@@ -2258,35 +2249,35 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				{
 					if (dwpal_acs_report_handle(context[idx], VAPName, isDwpalExtenderMode) == DWPAL_FAILURE)
 					{
-						PRINT_ERROR("%s; dwpal_acs_report_get (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
+						console_printf("%s; dwpal_acs_report_get (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
 				else if (!strncmp(hostapCmdOpcode, "GET_RADIO_INFO", STRNLEN_S("GET_RADIO_INFO", DWPAL_GENERAL_STRING_LENGTH)))
 				{
 					if (dwpal_radio_info_handle(context[idx], VAPName, isDwpalExtenderMode) == DWPAL_FAILURE)
 					{
-						PRINT_ERROR("%s; dwpal_radio_info_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
+						console_printf("%s; dwpal_radio_info_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
 				else if (!strncmp(hostapCmdOpcode, "GET_FAILSAFE_CHAN", STRNLEN_S("GET_FAILSAFE_CHAN", DWPAL_GENERAL_STRING_LENGTH)))
 				{
 					if (dwpal_get_failsafe_channel_handle(context[idx], VAPName, isDwpalExtenderMode) == DWPAL_FAILURE)
 					{
-						PRINT_ERROR("%s; dwpal_get_failsafe_channel_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
+						console_printf("%s; dwpal_get_failsafe_channel_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
 				else if (!strncmp(hostapCmdOpcode, "GET_RESTRICTED_CHANNELS", STRNLEN_S("GET_RESTRICTED_CHANNELS", DWPAL_GENERAL_STRING_LENGTH)))
 				{
 					if (dwpal_get_restricted_channels_handle(context[idx], VAPName, isDwpalExtenderMode) == DWPAL_FAILURE)
 					{
-						PRINT_ERROR("%s; dwpal_get_restricted_channels_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
+						console_printf("%s; dwpal_get_restricted_channels_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
 				else if (!strncmp(hostapCmdOpcode, "GET_VAP_MEASUREMENTS", STRNLEN_S("GET_VAP_MEASUREMENTS", DWPAL_GENERAL_STRING_LENGTH)))
 				{
 					if (dwpal_get_vap_measurements_handle(context[idx], VAPName, isDwpalExtenderMode) == DWPAL_FAILURE)
 					{
-						PRINT_ERROR("%s; dwpal_get_vap_measurements_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
+						console_printf("%s; dwpal_get_vap_measurements_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
 				else if (!strncmp(hostapCmdOpcode, "STA_MEASUREMENTS", STRNLEN_S("STA_MEASUREMENTS", DWPAL_GENERAL_STRING_LENGTH)))
@@ -2295,12 +2286,12 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					{
 						if (dwpal_get_sta_measurements_handle(context[idx], VAPName, field, isDwpalExtenderMode) == DWPAL_FAILURE)
 						{
-							PRINT_ERROR("%s; dwpal_get_sta_measurements_handle (VAPName= '%s', serviceName= '%s', MACAddress= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName, field);
+							console_printf("%s; dwpal_get_sta_measurements_handle (VAPName= '%s', serviceName= '%s', MACAddress= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName, field);
 						}
 					}
 					else
 					{
-						PRINT_DEBUG("%s; dwpal_get_sta_measurements_handle (VAPName= '%s', serviceName= '%s') no MAC Address ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
+						console_printf("%s; dwpal_get_sta_measurements_handle (VAPName= '%s', serviceName= '%s') no MAC Address ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
 				else if (!strncmp(hostapCmdOpcode, "REQ_BEACON", STRNLEN_S("REQ_BEACON", DWPAL_GENERAL_STRING_LENGTH)))
@@ -2312,7 +2303,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 						fields[i] = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
 						if (fields[i] == NULL)
 						{
-							PRINT_ERROR("%s; dwpal_req_beacon_handle (VAPName= '%s', serviceName= '%s') returned ERROR (i= %d) ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName, i);
+							console_printf("%s; dwpal_req_beacon_handle (VAPName= '%s', serviceName= '%s') returned ERROR (i= %d) ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName, i);
 							break;
 						}
 					}
@@ -2321,7 +2312,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					{
 						if (dwpal_req_beacon_handle(context[idx], VAPName, fields, isDwpalExtenderMode) == DWPAL_FAILURE)
 						{
-							PRINT_ERROR("%s; dwpal_req_beacon_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
+							console_printf("%s; dwpal_req_beacon_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 						}
 					}
 				}
@@ -2334,7 +2325,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 					if (reply == NULL)
 					{
-						PRINT_ERROR("%s; malloc (for reply) ERROR ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; malloc (for reply) ERROR ==> Abort!\n", __FUNCTION__);
 					}
 					else
 					{
@@ -2356,11 +2347,11 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 						if (ret == DWPAL_FAILURE)
 						{
-							PRINT_ERROR("%s; dwpal_hostap_cmd_send (VAPName= '%s', cmd= '%s') returned ERROR (reply= '%s') ==> Abort!\n", __FUNCTION__, VAPName, cmd, reply);
+							console_printf("%s; dwpal_hostap_cmd_send (VAPName= '%s', cmd= '%s') returned ERROR (reply= '%s') ==> Abort!\n", __FUNCTION__, VAPName, cmd, reply);
 						}
 						else
 						{
-							PRINT_DEBUG("%s; replyLen= %d, reply= '%s'\n", __FUNCTION__, replyLen, reply);
+							console_printf("%s; replyLen= %d, reply= '%s'\n", __FUNCTION__, replyLen, reply);
 						}
 					}
 				}
@@ -2370,13 +2361,13 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				/* Format: DWPAL_EXT_HOSTAP_IF_ATTACH */
 				if ((idx = interfaceIndexGet("hostap", VAPName)) == -1)
 				{
-					PRINT_ERROR("%s; interfaceIndexGet (radioName= '%s', serviceName= 'Both') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
+					console_printf("%s; interfaceIndexGet (radioName= '%s', serviceName= 'Both') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 					return;
 				}
 
 				if (dwpal_ext_hostap_interface_attach(VAPName, dwpalExtEventCallback) == DWPAL_FAILURE)
 				{
-					PRINT_ERROR("%s; dwpal_ext_hostap_interface_attach returned ERROR (VAPName= '%s') ==> Abort!\n", __FUNCTION__, VAPName);
+					console_printf("%s; dwpal_ext_hostap_interface_attach returned ERROR (VAPName= '%s') ==> Abort!\n", __FUNCTION__, VAPName);
 				}
 				else
 				{
@@ -2388,13 +2379,13 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				/* Format: DWPAL_EXT_HOSTAP_IF_DETACH */
 				if ((idx = interfaceIndexGet("hostap", VAPName)) == -1)
 				{
-					PRINT_ERROR("%s; interfaceIndexGet (radioName= '%s', serviceName= 'Both') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
+					console_printf("%s; interfaceIndexGet (radioName= '%s', serviceName= 'Both') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName);
 					return;
 				}
 
 				if (dwpal_ext_hostap_interface_detach(VAPName) == DWPAL_FAILURE)
 				{
-					PRINT_ERROR("%s; dwpal_ext_hostap_interface_detach returned ERROR (VAPName= '%s') ==> Abort!\n", __FUNCTION__, VAPName);
+					console_printf("%s; dwpal_ext_hostap_interface_detach returned ERROR (VAPName= '%s') ==> Abort!\n", __FUNCTION__, VAPName);
 				}
 			}
 			else if ( (!strncmp(opCode, "DWPAL_DRIVER_NL_CMD_SEND", STRNLEN_S("DWPAL_DRIVER_NL_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH))) ||
@@ -2418,7 +2409,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
 				if (field == NULL)
 				{
-					PRINT_ERROR("%s; nl80211Command is NULL ==> Abort!\n", __FUNCTION__);
+					console_printf("%s; nl80211Command is NULL ==> Abort!\n", __FUNCTION__);
 					return;
 				}
 				nl80211Command = (enum nl80211_commands)strtol(field, NULL, 16);
@@ -2426,7 +2417,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
 				if (field == NULL)
 				{
-					PRINT_ERROR("%s; cmdIdType is NULL ==> Abort!\n", __FUNCTION__);
+					console_printf("%s; cmdIdType is NULL ==> Abort!\n", __FUNCTION__);
 					return;
 				}
 				cmdIdType = (CmdIdType)atoi(field);
@@ -2434,7 +2425,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
 				if (field == NULL)
 				{
-					PRINT_ERROR("%s; subCommand is NULL ==> Abort!\n", __FUNCTION__);
+					console_printf("%s; subCommand is NULL ==> Abort!\n", __FUNCTION__);
 					return;
 				}
 				subCommand = (enum ltq_nl80211_vendor_subcmds)strtol(field, NULL, 16);
@@ -2442,14 +2433,14 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
 				if (field == NULL)
 				{
-					PRINT_ERROR("%s; vendorDataSize is NULL ==> cont...\n", __FUNCTION__);
+					console_printf("%s; vendorDataSize is NULL ==> cont...\n", __FUNCTION__);
 				}
 				else
 				{
 					vendorDataSize = (size_t)atoi(field);
 					if (vendorDataSize > (sizeof(vendorData) / sizeof(unsigned char)))
 					{
-						PRINT_ERROR("%s; vendorDataSize (%d) bigger than sizeof(vendorData) (%d) ==> Abort!\n", __FUNCTION__, vendorDataSize, sizeof(vendorData));
+						console_printf("%s; vendorDataSize (%d) bigger than sizeof(vendorData) (%d) ==> Abort!\n", __FUNCTION__, vendorDataSize, sizeof(vendorData));
 						return;
 					}
 
@@ -2458,7 +2449,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 						field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
 						if (field == NULL)
 						{
-							PRINT_ERROR("%s; vendorData[%d] is NULL ==> Abort!\n", __FUNCTION__, i);
+							console_printf("%s; vendorData[%d] is NULL ==> Abort!\n", __FUNCTION__, i);
 							return;
 						}
 
@@ -2472,7 +2463,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					{
 						if (dwpal_ext_driver_nl_cmd_send(VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize) == DWPAL_FAILURE)
 						{
-							PRINT_ERROR("%s; dwpal_ext_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
+							console_printf("%s; dwpal_ext_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
 						}
 					}
 					else
@@ -2482,24 +2473,24 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 						if (outData == NULL)
 						{
-							PRINT_ERROR("%s; outData malloc ERROR ==> Abort!\n", __FUNCTION__);
+							console_printf("%s; outData malloc ERROR ==> Abort!\n", __FUNCTION__);
 						}
 						else
 						{
 							memset(outData, '\0', 1024);
 							if (dwpal_ext_driver_nl_get(VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize, &outLen, outData) == DWPAL_FAILURE)
 							{
-								PRINT_ERROR("%s; dwpal_ext_driver_nl_get returned ERROR ==> Abort!\n", __FUNCTION__);
+								console_printf("%s; dwpal_ext_driver_nl_get returned ERROR ==> Abort!\n", __FUNCTION__);
 							}
 
 							lenToPrint = (outLen <= 10)? outLen : 10;
 
-							PRINT_DEBUG("%s; Output data from the 'get' function:\n", __FUNCTION__);
+							console_printf("%s; Output data from the 'get' function:\n", __FUNCTION__);
 							for (i=0; i < (int)lenToPrint; i++)
 							{
-								PRINT_DEBUG(" 0x%x", outData[i]);
+								console_printf(" 0x%x", outData[i]);
 							}
-							PRINT_DEBUG("\n");
+							console_printf("\n");
 
 							free ((void *)outData);
 						}
@@ -2509,15 +2500,15 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				{
 					if ((idx = interfaceIndexGet("Driver", "ALL")) == -1)
 					{
-						PRINT_ERROR("%s; interfaceIndexGet (radioName= 'wlan0', serviceName= 'Both') returned ERROR ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; interfaceIndexGet (radioName= 'wlan0', serviceName= 'Both') returned ERROR ==> Abort!\n", __FUNCTION__);
 						return;
 					}
 
-					PRINT_DEBUG("%s; idx= %d\n", __FUNCTION__, idx);
+					console_printf("%s; idx= %d\n", __FUNCTION__, idx);
 
 					if (dwpal_driver_nl_cmd_send(context[idx], DWPAL_NL_EVENT_GET, VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize) == DWPAL_FAILURE)
 					{
-						PRINT_ERROR("%s; dwpal_driver_nl_cmd_send (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
+						console_printf("%s; dwpal_driver_nl_cmd_send (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
 			}
@@ -2531,7 +2522,7 @@ static void dwpalDebugCliStart(void)
 	int    i, res, numOfServices = sizeof(dwpalService) / sizeof(DwpalService);
 	fd_set rfds;
 
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
     /* Init signals */
     init_signals();
@@ -2558,7 +2549,7 @@ static void dwpalDebugCliStart(void)
 		res = select(STDIN_FILENO + 1, &rfds, NULL, NULL, NULL);
 		if (res < 0)
 		{
-			PRINT_DEBUG("%s; select() return value= %d ==> cont...; errno= %d ('%s')\n", __FUNCTION__, res, errno, strerror(errno));
+			console_printf("%s; select() return value= %d ==> cont...; errno= %d ('%s')\n", __FUNCTION__, res, errno, strerror(errno));
 			break;
 		}
 
@@ -2568,7 +2559,7 @@ static void dwpalDebugCliStart(void)
 		}
 	}
 
-	PRINT_DEBUG("\n");
+	console_printf("\n");
 
 	/* DeInit the services - only in case of using non-dwpal-ext mode */
 	for (i=0; i < numOfServices; i++)
@@ -2577,7 +2568,7 @@ static void dwpalDebugCliStart(void)
 		{
 			if (interfaceReset(&dwpalService[i], i) == DWPAL_SUCCESS)
 			{
-				PRINT_DEBUG("%s; interfaceReset (radioName= '%s', serviceName= '%s') successfully\n",
+				console_printf("%s; interfaceReset (radioName= '%s', serviceName= '%s') successfully\n",
 				            __FUNCTION__, dwpalService[i].radioName, dwpalService[i].serviceName);
 			}
 		}
@@ -2587,10 +2578,10 @@ static void dwpalDebugCliStart(void)
 	write_history("/tmp/dwpal_debug_cli_history");
 
 	/* Cleanup */
-	PRINT_DEBUG("%s; D-WPAL Debug CLI cleanup...\n", __FUNCTION__);
+	console_printf("%s; D-WPAL Debug CLI cleanup...\n", __FUNCTION__);
 	rl_callback_handler_remove();
 
-	PRINT_DEBUG("%s; Bye!\n", __FUNCTION__);
+	console_printf("%s; Bye!\n", __FUNCTION__);
 }
 
 
@@ -2638,7 +2629,7 @@ int main(int argc, char *argv[])
 	rsize_t       dmaxLen;
 	extern char   *optarg;
 
-	PRINT_DEBUG("D-WPAL Debug CLI Function Entry; argc= %d, argv[0]= '%s', argv[1]= '%s', argv[2]= '%s'\n", argc, argv[0], argv[1], argv[2]);
+	console_printf("D-WPAL Debug CLI Function Entry; argc= %d, argv[0]= '%s', argv[1]= '%s', argv[2]= '%s'\n", argc, argv[0], argv[1], argv[2]);
 
 	if (argc == 1)
 	{  /* Interactive mode */
@@ -2649,14 +2640,14 @@ int main(int argc, char *argv[])
 		numOfListeningEvents = 0;
 		while ((option = getopt(argc, argv, "i:v:c:l:d:")) != -1)
 		{
-			PRINT_DEBUG("option= %d, optarg= '%s'\n", option, optarg);
+			console_printf("option= %d, optarg= '%s'\n", option, optarg);
 			switch (option)
 			{
 				case 'i':
 					stringLength = STRNLEN_S(optarg, DWPAL_GENERAL_STRING_LENGTH);
 					STRNCPY_S(interfaceType, sizeof(interfaceType), optarg, stringLength);
 					interfaceType[stringLength] = '\0';
-					PRINT_DEBUG("interfaceType= '%s'\n", interfaceType);
+					console_printf("interfaceType= '%s'\n", interfaceType);
 
 					if (interfaceType[0] != '\0')
 					{
@@ -2664,7 +2655,7 @@ int main(int argc, char *argv[])
 						{
 							if (dwpal_ext_driver_nl_attach(nlCliOneShotEventCallback) == DWPAL_FAILURE)
 							{
-								PRINT_ERROR("%s; dwpal_ext_driver_nl_attach returned ERROR ==> Abort!\n", __FUNCTION__);
+								console_printf("%s; dwpal_ext_driver_nl_attach returned ERROR ==> Abort!\n", __FUNCTION__);
 								return -1;
 							}
 						}
@@ -2675,7 +2666,7 @@ int main(int argc, char *argv[])
 					stringLength = STRNLEN_S(optarg, DWPAL_VAP_NAME_STRING_LENGTH);
 					STRNCPY_S(oneShotVAPName, sizeof(oneShotVAPName), optarg, stringLength);
 					oneShotVAPName[stringLength] = '\0';
-					PRINT_DEBUG("oneShotVAPName= '%s'\n", oneShotVAPName);
+					console_printf("oneShotVAPName= '%s'\n", oneShotVAPName);
 
 					if (interfaceType[0] != '\0')
 					{
@@ -2685,7 +2676,7 @@ int main(int argc, char *argv[])
 							{
 								if (dwpal_ext_hostap_interface_attach(oneShotVAPName, dwpalOneShotEventCallback) == DWPAL_FAILURE)
 								{
-									PRINT_ERROR("%s; dwpal_ext_hostap_interface_attach returned ERROR (oneShotVAPName= '%s') ==> Abort!\n", __FUNCTION__, oneShotVAPName);
+									console_printf("%s; dwpal_ext_hostap_interface_attach returned ERROR (oneShotVAPName= '%s') ==> Abort!\n", __FUNCTION__, oneShotVAPName);
 									return -1;
 								}
 							}
@@ -2697,20 +2688,20 @@ int main(int argc, char *argv[])
 					stringLength = STRNLEN_S(optarg, DWPAL_TO_HOSTAPD_MSG_LENGTH);
 					STRNCPY_S(oneShotCommand, sizeof(oneShotCommand), optarg, stringLength);
 					oneShotCommand[stringLength] = '\0';
-					PRINT_DEBUG("oneShotCommand= '%s'\n", oneShotCommand);
+					console_printf("oneShotCommand= '%s'\n", oneShotCommand);
 					break;
 
 				case 'l':
 					if (numOfListeningEvents >= NUM_OF_LISTENING_EVENTS)
 					{
-						PRINT_DEBUG("Ignore opCodeForListener ('%s') ==> number of events reached the limit (%d)\n", optarg, NUM_OF_LISTENING_EVENTS);
+						console_printf("Ignore opCodeForListener ('%s') ==> number of events reached the limit (%d)\n", optarg, NUM_OF_LISTENING_EVENTS);
 						break;
 					}
 
 					stringLength = STRNLEN_S(optarg, DWPAL_OPCODE_STRING_LENGTH);
 					STRNCPY_S(opCodeForListener[numOfListeningEvents], sizeof(opCodeForListener[numOfListeningEvents]), optarg, stringLength);
 					opCodeForListener[numOfListeningEvents][stringLength] = '\0';
-					PRINT_DEBUG("opCodeForListener[%d]= '%s'\n", numOfListeningEvents, opCodeForListener[numOfListeningEvents]);
+					console_printf("opCodeForListener[%d]= '%s'\n", numOfListeningEvents, opCodeForListener[numOfListeningEvents]);
 					numOfListeningEvents++;
 					break;
 
@@ -2718,36 +2709,36 @@ int main(int argc, char *argv[])
 					stringLength = STRNLEN_S(optarg, 512);
 					STRNCPY_S(vendorDataString, sizeof(vendorDataString), optarg, stringLength);
 					vendorDataString[stringLength] = '\0';
-					PRINT_DEBUG("vendorDataString= '%s'\n", vendorDataString);
+					console_printf("vendorDataString= '%s'\n", vendorDataString);
 
 					arrayIdx = 0;
 					vendorDataTempString = vendorDataString;
 					dmaxLen = (rsize_t)stringLength;
-					PRINT_DEBUG("dmaxLen= %d\n", dmaxLen);
+					console_printf("dmaxLen= %d\n", dmaxLen);
 					while ( (tempString = STRTOK_S(vendorDataTempString, &dmaxLen, " ", &p2str)) != NULL )
 					{
-						PRINT_DEBUG("tempString[%d]= '%s'\n", arrayIdx, tempString);
+						console_printf("tempString[%d]= '%s'\n", arrayIdx, tempString);
 						vendorData[arrayIdx++] = atoi(tempString);
 						vendorDataTempString = NULL;
 					}
 
 					vendorDataSize = arrayIdx;
 
-					PRINT_DEBUG("arrayIdx= %d\n", arrayIdx);
+					console_printf("arrayIdx= %d\n", arrayIdx);
 					for (i=0; i < arrayIdx; i++)
 					{
-						PRINT_DEBUG("vendorData[%d]= %d\n", i, vendorData[i]);
+						console_printf("vendorData[%d]= %d\n", i, vendorData[i]);
 					}
 					break;
 
 				default:
-					PRINT_ERROR("Invalid option (%d) ==> Abort!\n", option);
+					console_printf("Invalid option (%d) ==> Abort!\n", option);
 					return -1;
 					break;
 			}
 		}
 
-		PRINT_DEBUG("interfaceType= '%s', oneShotVAPName= '%s', oneShotCommand= '%s'\n", interfaceType, oneShotVAPName, oneShotCommand);
+		console_printf("interfaceType= '%s', oneShotVAPName= '%s', oneShotCommand= '%s'\n", interfaceType, oneShotVAPName, oneShotCommand);
 		if (interfaceType[0] != '\0')
 		{
 			if (!strncmp(interfaceType, "hostap", 7))
@@ -2757,7 +2748,7 @@ int main(int argc, char *argv[])
 					reply = (char *)malloc((size_t)(HOSTAPD_TO_DWPAL_MSG_LENGTH * sizeof(char)));
 					if (reply == NULL)
 					{
-						PRINT_ERROR("%s; malloc (for reply) ERROR ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; malloc (for reply) ERROR ==> Abort!\n", __FUNCTION__);
 						return -1;
 					}
 
@@ -2765,12 +2756,12 @@ int main(int argc, char *argv[])
 					{
 						if (dwpal_ext_hostap_cmd_send(oneShotVAPName, oneShotCommand, NULL, reply, &replyLen) == DWPAL_FAILURE)
 						{
-							PRINT_ERROR("%s; dwpal_hostap_cmd_send (oneShotVAPName= '%s', oneShotCommand= '%s') returned ERROR (reply= '%s') ==> Abort!\n", __FUNCTION__, oneShotVAPName, oneShotCommand, reply);
+							console_printf("%s; dwpal_hostap_cmd_send (oneShotVAPName= '%s', oneShotCommand= '%s') returned ERROR (reply= '%s') ==> Abort!\n", __FUNCTION__, oneShotVAPName, oneShotCommand, reply);
 							free((void *)reply);
 							return -1;
 						}
 
-						PRINT_DEBUG("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
+						console_printf("%s; replyLen= %d\nresponse=\n%s\n", __FUNCTION__, replyLen, reply);
 					}
 
 					free((void *)reply);
@@ -2787,24 +2778,24 @@ int main(int argc, char *argv[])
 
 						if (outData == NULL)
 						{
-							PRINT_ERROR("%s; outData malloc ERROR ==> Abort!\n", __FUNCTION__);
+							console_printf("%s; outData malloc ERROR ==> Abort!\n", __FUNCTION__);
 						}
 						else
 						{
 							memset(outData, '\0', 1024);
 							if (dwpal_ext_driver_nl_get(oneShotVAPName, NL80211_CMD_VENDOR, DWPAL_NETDEV_ID, (unsigned int)atoi(oneShotCommand), vendorData, vendorDataSize, &outLen, outData) == DWPAL_FAILURE)
 							{
-								PRINT_ERROR("%s; dwpal_ext_driver_nl_get returned ERROR ==> Abort!\n", __FUNCTION__);
+								console_printf("%s; dwpal_ext_driver_nl_get returned ERROR ==> Abort!\n", __FUNCTION__);
 							}
 
 							lenToPrint = (outLen <= 10)? outLen : 10;
 
-							PRINT_DEBUG("%s; Output data from the 'get' function:\n", __FUNCTION__);
+							console_printf("%s; Output data from the 'get' function:\n", __FUNCTION__);
 							for (i=0; i < (int)lenToPrint; i++)
 							{
-								PRINT_DEBUG(" 0x%x", outData[i]);
+								console_printf(" 0x%x", outData[i]);
 							}
-							PRINT_DEBUG("\n");
+							console_printf("\n");
 
 							free ((void *)outData);
 						}
@@ -2813,10 +2804,16 @@ int main(int argc, char *argv[])
 					{
 						if (dwpal_ext_driver_nl_cmd_send(oneShotVAPName, NL80211_CMD_VENDOR, DWPAL_NETDEV_ID, (unsigned int)atoi(oneShotCommand), vendorData, vendorDataSize) == DWPAL_FAILURE)
 						{
-							PRINT_ERROR("%s; dwpal_ext_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
+							console_printf("%s; dwpal_ext_driver_nl_cmd_send returned ERROR ==> Abort!\n", __FUNCTION__);
 						}
 					}
 				}
+			}
+		}
+		else {
+			if( check_stats_cmd(argc-1,&argv[1]) ) {
+				console_printf(" stats command failed\n");
+				return -1;
 			}
 		}
 

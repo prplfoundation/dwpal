@@ -38,14 +38,6 @@
 
 #define OUI_LTQ 0xAC9A96
 
-#if defined YOCTO_LOGGING
-#include "help_logging.h"
-#define PRINT_DEBUG(...)  LOGF_LOG_DEBUG(__VA_ARGS__)
-#define PRINT_ERROR(...)  LOGF_LOG_ERROR(__VA_ARGS__)
-#else
-#define PRINT_DEBUG(...)  printf(__VA_ARGS__)
-#define PRINT_ERROR(...)  printf(__VA_ARGS__)
-#endif
 
 
 typedef struct
@@ -91,12 +83,12 @@ static DWPAL_Ret command_get_ended_msg_send(void)
 	char               socketName[SOCKET_NAME_LENGTH] = "\0";
 	pid_t              pid = getpid();
 
-	PRINT_ERROR("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
 	/* create a UNIX domain stream socket */
 	if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
 	{
-		PRINT_ERROR("%s; create socket fail; pid= %d; errno= %d ('%s')\n", __FUNCTION__, pid, errno, strerror(errno));
+		console_printf("%s; create socket fail; pid= %d; errno= %d ('%s')\n", __FUNCTION__, pid, errno, strerror(errno));
 		return DWPAL_FAILURE;
     }
 
@@ -110,12 +102,12 @@ static DWPAL_Ret command_get_ended_msg_send(void)
 
 	if (connect(fd, (struct sockaddr *)&un, len) < 0)
 	{
-		PRINT_ERROR("%s; connect() fail; pid= %d; errno= %d ('%s')\n",
+		console_printf("%s; connect() fail; pid= %d; errno= %d ('%s')\n",
 		       __FUNCTION__, pid, errno, strerror(errno));
 
 		if (close(fd) == (-1))
 		{
-			PRINT_ERROR("%s; close() fail; pid= %d; errno= %d ('%s')\n",
+			console_printf("%s; close() fail; pid= %d; errno= %d ('%s')\n",
 				   __FUNCTION__, pid, errno, strerror(errno));
 		}
 
@@ -124,12 +116,12 @@ static DWPAL_Ret command_get_ended_msg_send(void)
 
 	if ((byte = write(fd, NULL, 0)) == -1)
 	{
-		PRINT_ERROR("%s; write() fail; pid= %d; errno= %d ('%s')\n",
+		console_printf("%s; write() fail; pid= %d; errno= %d ('%s')\n",
 		       __FUNCTION__, pid, errno, strerror(errno));
 
 		if (close(fd) == (-1))
 		{
-			PRINT_ERROR("%s; close() fail; pid= %d; errno= %d ('%s')\n",
+			console_printf("%s; close() fail; pid= %d; errno= %d ('%s')\n",
 				   __FUNCTION__, pid, errno, strerror(errno));
 		}
 
@@ -138,7 +130,7 @@ static DWPAL_Ret command_get_ended_msg_send(void)
 
 	if (close(fd) == (-1))
 	{
-		PRINT_ERROR("%s; close() fail; pid= %d; errno= %d ('%s')\n",
+		console_printf("%s; close() fail; pid= %d; errno= %d ('%s')\n",
 		       __FUNCTION__, pid, errno, strerror(errno));
 	}
 
@@ -156,11 +148,11 @@ static DWPAL_Ret nlInternalNlCallback(DWPAL_NlEventType nlEventType, struct nl_m
 	int               len, vendor_subcmd = -1;
 	char              ifname[DWPAL_VAP_NAME_STRING_LENGTH] = "\0";
 
-	PRINT_DEBUG("%s Entry; nlEventType= %d (DWPAL_NL_EVENT_GET=0, DWPAL_NL_CMD_GET=1)\n", __FUNCTION__, nlEventType);
+	console_printf("%s Entry; nlEventType= %d (DWPAL_NL_EVENT_GET=0, DWPAL_NL_CMD_GET=1)\n", __FUNCTION__, nlEventType);
 
 	if ( (nlEventType == DWPAL_NL_EVENT_GET) && (localContext->interface.driver.nlEventCallback == NULL) )
 	{
-		PRINT_DEBUG("%s; 'DWPAL_NL_EVENT_GET' and nlEventCallback=NULL ==> exit\n", __FUNCTION__);
+		console_printf("%s; 'DWPAL_NL_EVENT_GET' and nlEventCallback=NULL ==> exit\n", __FUNCTION__);
 		return (int)DWPAL_SUCCESS;
 	}
 
@@ -176,7 +168,7 @@ static DWPAL_Ret nlInternalNlCallback(DWPAL_NlEventType nlEventType, struct nl_m
 
 	if (!attr)
 	{
-		PRINT_ERROR("%s; vendor data attribute missing ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; vendor data attribute missing ==> Abort!\n", __FUNCTION__);
 		return (int)DWPAL_FAILURE;
 	}
 
@@ -198,10 +190,10 @@ static DWPAL_Ret nlInternalNlCallback(DWPAL_NlEventType nlEventType, struct nl_m
 		/* Call the NL 'get command' callback function */
 		localContext->interface.driver.nlCmdGetCallback(ifname, gnlh->cmd, vendor_subcmd, (size_t)len, data);
 
-		PRINT_DEBUG("%s; 'get command' received ==> notify dwpal_ext\n", __FUNCTION__);
+		console_printf("%s; 'get command' received ==> notify dwpal_ext\n", __FUNCTION__);
 		if (command_get_ended_msg_send() == DWPAL_FAILURE)
 		{
-			PRINT_ERROR("%s; command_get_ended_msg_send failed ==> cont...\n", __FUNCTION__);
+			console_printf("%s; command_get_ended_msg_send failed ==> cont...\n", __FUNCTION__);
 		}
 	}
 	else if (nlEventType == DWPAL_NL_EVENT_GET)
@@ -211,7 +203,7 @@ static DWPAL_Ret nlInternalNlCallback(DWPAL_NlEventType nlEventType, struct nl_m
 	}
 	else
 	{
-		PRINT_ERROR("%s; invalid nlEventType (%d) ==> Abort!\n", __FUNCTION__, nlEventType);
+		console_printf("%s; invalid nlEventType (%d) ==> Abort!\n", __FUNCTION__, nlEventType);
 		return DWPAL_FAILURE;
 	}
 
@@ -221,11 +213,11 @@ static DWPAL_Ret nlInternalNlCallback(DWPAL_NlEventType nlEventType, struct nl_m
 
 static int nlInternalCmdGetCallback(struct nl_msg *msg, void *arg)
 {
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
 	if (nlInternalNlCallback(DWPAL_NL_CMD_GET, msg, arg) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; nlInternalNlCallback ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nlInternalNlCallback ERROR ==> Abort!\n", __FUNCTION__);
 		return (int)DWPAL_FAILURE;
 	}
 
@@ -235,11 +227,11 @@ static int nlInternalCmdGetCallback(struct nl_msg *msg, void *arg)
 
 static int nlInternalEventCallback(struct nl_msg *msg, void *arg)
 {
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
 	if (nlInternalNlCallback(DWPAL_NL_EVENT_GET, msg, arg) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; nlInternalNlCallback ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nlInternalNlCallback ERROR ==> Abort!\n", __FUNCTION__);
 		return (int)DWPAL_FAILURE;
 	}
 
@@ -254,21 +246,21 @@ static DWPAL_Ret nlSocketCreate(struct nl_sock **nlSocket, int *fd)
 	*nlSocket = nl_socket_alloc();
 	if (*nlSocket == NULL)
 	{
-		PRINT_ERROR("%s; nl_socket_alloc ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nl_socket_alloc ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	/* Connect to generic netlink socket on kernel side */
 	if (genl_connect(*nlSocket) < 0)
 	{
-		PRINT_ERROR("%s; genl_connect ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; genl_connect ERROR ==> Abort!\n", __FUNCTION__);
 		nl_socket_free(*nlSocket);
 		return DWPAL_FAILURE;
 	}
 
 	if (nl_socket_set_buffer_size(*nlSocket, 8192, 8192) != 0)
 	{
-		PRINT_ERROR("%s; nl_socket_set_buffer_size ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nl_socket_set_buffer_size ERROR ==> Abort!\n", __FUNCTION__);
 		nl_socket_free(*nlSocket);
 		return DWPAL_FAILURE;
 	}
@@ -276,11 +268,11 @@ static DWPAL_Ret nlSocketCreate(struct nl_sock **nlSocket, int *fd)
 	*fd = nl_socket_get_fd(*nlSocket);
 	if (*fd == -1)
 	{
-		PRINT_ERROR("%s; nl_socket_get_fd ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nl_socket_get_fd ERROR ==> Abort!\n", __FUNCTION__);
 		nl_socket_free(*nlSocket);
 		return DWPAL_FAILURE;
 	}
-	PRINT_DEBUG("%s; driver.fd= %d\n", __FUNCTION__, *fd);
+	console_printf("%s; driver.fd= %d\n", __FUNCTION__, *fd);
 
 	/* manipulate options for the socket referred to by the file descriptor - driver.fd */
 	setsockopt(*fd, SOL_NETLINK /*option level argument*/,
@@ -296,7 +288,7 @@ static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int 
 
 	if (param == NULL)
 	{
-		PRINT_ERROR("%s; param is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; param is NULL ==> Abort!\n", __FUNCTION__);
 		return false;
 	}
 
@@ -304,7 +296,7 @@ static bool mandatoryFieldValueGet(char *buf, size_t *bufLen, char **p2str, int 
 	{
 		if (STRNLEN_S(param, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) > (size_t)(totalSizeOfArg - 1))
 		{
-			PRINT_ERROR("%s; param ('%s') length (%d) is higher than allocated size (%d) ==> Abort!\n", __FUNCTION__, param, STRNLEN_S(param, totalSizeOfArg), totalSizeOfArg-1);
+			console_printf("%s; param ('%s') length (%d) is higher than allocated size (%d) ==> Abort!\n", __FUNCTION__, param, STRNLEN_S(param, totalSizeOfArg), totalSizeOfArg-1);
 			return false;
 		}
 
@@ -366,7 +358,7 @@ static bool arrayValuesGet(char *stringOfValues, size_t totalSizeOfArg, ParamPar
 
 	if (idx >= (int)totalSizeOfArg)
 	{
-		PRINT_ERROR("%s; actual number of arguments (%d) is bigger/equal then totalSizeOfArg (%d) ==> Abort!\n", __FUNCTION__, idx, totalSizeOfArg);
+		console_printf("%s; actual number of arguments (%d) is bigger/equal then totalSizeOfArg (%d) ==> Abort!\n", __FUNCTION__, idx, totalSizeOfArg);
 		return false;
 	}
 
@@ -389,7 +381,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 	localBuf = (char *)malloc(bufLen + 2 /* '\0' & 'blank' */);
 	if (localBuf == NULL)
 	{
-		PRINT_ERROR("%s; malloc failed ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc failed ==> Abort!\n", __FUNCTION__);
 		return false;
 	}
 
@@ -402,7 +394,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 	localStringToSearch = (char *)malloc(STRNLEN_S(stringToSearch, DWPAL_FIELD_NAME_LENGTH) + 2 /*'\0' & 'blank' */);
 	if (localStringToSearch == NULL)
 	{
-		PRINT_ERROR("%s; localStringToSearch is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; localStringToSearch is NULL ==> Abort!\n", __FUNCTION__);
 		free((void *)localBuf);
 		return false;
 	}
@@ -417,7 +409,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 
 		/* move the string pointer to the beginning of the field's value */
 		restOfStringStart = stringStart + STRNLEN_S(localStringToSearch, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH);
-		//PRINT_DEBUG("%s; stringStart= 0x%x, strlen of ('%s')= %d ==> restOfStringStart= 0x%x\n",
+		//console_printf("%s; stringStart= 0x%x, strlen of ('%s')= %d ==> restOfStringStart= 0x%x\n",
 			   //__FUNCTION__, (unsigned int)stringStart, localStringToSearch, STRNLEN_S(localStringToSearch, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH), (unsigned int)restOfStringStart);
 
 		/* find all beginning of all other fields (and get the closest to the current field) in order to know where the field's value ends */
@@ -429,7 +421,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 			if (stringEnd != NULL)
 			{
 				stringEnd++;  /* move one character ahead due to the ' ' at the beginning of localEndFieldName */
-				//PRINT_DEBUG("%s; localEndFieldName= '%s' FOUND! (i= %d)\n", __FUNCTION__, localEndFieldName, i);
+				//console_printf("%s; localEndFieldName= '%s' FOUND! (i= %d)\n", __FUNCTION__, localEndFieldName, i);
 				if (isFirstEndOfString)
 				{
 					isFirstEndOfString = false;
@@ -440,31 +432,31 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 					closerStringEnd = (stringEnd < closerStringEnd)? stringEnd : closerStringEnd;
 				}
 
-				//PRINT_DEBUG("%s; [0] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
+				//console_printf("%s; [0] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
 			}
 
 			i++;
 		}
 
-		//PRINT_DEBUG("%s; [1] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
+		//console_printf("%s; [1] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
 
 		if (closerStringEnd == NULL)
 		{  /* Meaning, this is the last parameter in the string */
-			//PRINT_DEBUG("%s; closerStringEnd is NULL; restOfStringStart= '%s'\n", __FUNCTION__, restOfStringStart);
+			//console_printf("%s; closerStringEnd is NULL; restOfStringStart= '%s'\n", __FUNCTION__, restOfStringStart);
 			closerStringEnd = restOfStringStart + STRNLEN_S(restOfStringStart, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1 /* for '\0' */;
-			//PRINT_DEBUG("%s; [2] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
+			//console_printf("%s; [2] closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
 
-			//PRINT_DEBUG("%s; String end did NOT found ==> set closerStringEnd to the end of buf; closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
+			//console_printf("%s; String end did NOT found ==> set closerStringEnd to the end of buf; closerStringEnd= 0x%x\n", __FUNCTION__, (unsigned int)closerStringEnd);
 		}
 
-		//PRINT_DEBUG("%s; stringToSearch= '%s'; restOfStringStart= '%s'; buf= '%s'\n", __FUNCTION__, stringToSearch, restOfStringStart, buf);
-		//PRINT_DEBUG("%s; restOfStringStart= 0x%x, closerStringEnd= 0x%x ==> characters to copy = %d\n", __FUNCTION__, (unsigned int)restOfStringStart, (unsigned int)closerStringEnd, closerStringEnd - restOfStringStart);
+		//console_printf("%s; stringToSearch= '%s'; restOfStringStart= '%s'; buf= '%s'\n", __FUNCTION__, stringToSearch, restOfStringStart, buf);
+		//console_printf("%s; restOfStringStart= 0x%x, closerStringEnd= 0x%x ==> characters to copy = %d\n", __FUNCTION__, (unsigned int)restOfStringStart, (unsigned int)closerStringEnd, closerStringEnd - restOfStringStart);
 
 		/* set 'numOfCharacters' with the number of characters to copy (including the blank or end-of-string at the end) */
 		numOfCharacters = closerStringEnd - restOfStringStart;
 		if (numOfCharacters <= 0)
 		{
-			PRINT_ERROR("%s; numOfCharacters= %d ==> Abort!\n", __FUNCTION__, numOfCharacters);
+			console_printf("%s; numOfCharacters= %d ==> Abort!\n", __FUNCTION__, numOfCharacters);
 			free((void *)localBuf);
 			free((void *)localStringToSearch);
 			return false;
@@ -473,7 +465,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 		/* Copy the characters of the value, and set the last one to '\0' */
 		STRNCPY_S(tempStringOfValues, sizeof(tempStringOfValues), restOfStringStart, numOfCharacters);
 		tempStringOfValues[numOfCharacters - 1] = '\0';
-		//PRINT_DEBUG("%s; stringToSearch= '%s'; tempStringOfValues= '%s'\n", __FUNCTION__, stringToSearch, tempStringOfValues);
+		//console_printf("%s; stringToSearch= '%s'; tempStringOfValues= '%s'\n", __FUNCTION__, stringToSearch, tempStringOfValues);
 
 		/* Check if all elements are valid; if an element contains "=", it is NOT valid ==> do NOT copy it! */
 		for (i=0; i < numOfCharacters; i++)
@@ -492,7 +484,7 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 		idx += numOfCharactersToCopy;
 		stringOfValues[idx] = '\0';
 
-		//PRINT_DEBUG("%s; stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, stringToSearch, stringOfValues);
+		//console_printf("%s; stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, stringToSearch, stringOfValues);
 
 		closerStringEnd = NULL;
 	}
@@ -510,12 +502,12 @@ static bool fieldValuesGet(char *buf, size_t bufLen, const char *stringToSearch,
 		}
 	}
 
-	//PRINT_DEBUG("%s; stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, stringToSearch, stringOfValues);
+	//console_printf("%s; stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, stringToSearch, stringOfValues);
 
 	free((void *)localBuf);
 	free((void *)localStringToSearch);
 
-	//PRINT_DEBUG("%s; ret= %d, stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, ret, stringToSearch, stringOfValues);
+	//console_printf("%s; ret= %d, stringToSearch= '%s'; stringOfValues= '%s'\n", __FUNCTION__, ret, stringToSearch, stringOfValues);
 
 	return ret;
 }
@@ -525,11 +517,11 @@ static bool isColumnOfFields(char *msg, char *endFieldName[])
 {
 	int i = 0, numOfFieldsInLine = 0;
 
-	//PRINT_DEBUG("%s; line= '%s'\n", __FUNCTION__, msg);
+	//console_printf("%s; line= '%s'\n", __FUNCTION__, msg);
 
 	if (endFieldName == NULL)
 	{
-		PRINT_DEBUG("%s; endFieldName= 'NULL' ==> not a column!\n", __FUNCTION__);
+		console_printf("%s; endFieldName= 'NULL' ==> not a column!\n", __FUNCTION__);
 		return false;
 	}
 
@@ -541,7 +533,7 @@ static bool isColumnOfFields(char *msg, char *endFieldName[])
 
 			if (numOfFieldsInLine > 1)
 			{
-				//PRINT_DEBUG("%s; Not a column (numOfFieldsInLine= %d) ==> return!\n", __FUNCTION__, numOfFieldsInLine);
+				//console_printf("%s; Not a column (numOfFieldsInLine= %d) ==> return!\n", __FUNCTION__, numOfFieldsInLine);
 				return false;
 			}
 
@@ -552,7 +544,7 @@ static bool isColumnOfFields(char *msg, char *endFieldName[])
 		i++;
 	}
 
-	//PRINT_DEBUG("%s; It is a column (numOfFieldsInLine= %d)\n", __FUNCTION__, numOfFieldsInLine);
+	//console_printf("%s; It is a column (numOfFieldsInLine= %d)\n", __FUNCTION__, numOfFieldsInLine);
 
 	return true;
 }
@@ -567,7 +559,7 @@ static bool columnOfParamsToRowConvert(char *msg, size_t msgLen, char *endFieldN
 
 	if (localMsg == NULL)
 	{
-		PRINT_ERROR("%s; strdup error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; strdup error ==> Abort!\n", __FUNCTION__);
 		return false;
 	}
 
@@ -579,7 +571,7 @@ static bool columnOfParamsToRowConvert(char *msg, size_t msgLen, char *endFieldN
 
 		if (isColumn == false)
 		{
-			//PRINT_DEBUG("%s; Not a column ==> break!\n", __FUNCTION__);
+			//console_printf("%s; Not a column ==> break!\n", __FUNCTION__);
 			break;
 		}
 
@@ -624,17 +616,17 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context,
 	signed long long devidx = 0;
 	struct nl_sock   *nlSocket = NULL;
 
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
 	if (nl80211Command != NL80211_CMD_VENDOR /*0x67*/)
 	{
-		PRINT_ERROR("%s; non supported command (0x%x); currently we support ONLY NL80211_CMD_VENDOR (0x67) ==> Abort!\n", __FUNCTION__, (unsigned int)nl80211Command);
+		console_printf("%s; non supported command (0x%x); currently we support ONLY NL80211_CMD_VENDOR (0x67) ==> Abort!\n", __FUNCTION__, (unsigned int)nl80211Command);
 		return DWPAL_FAILURE;
 	}
 
 	for (i=0; i < (int)vendorDataSize; i++)
 	{
-		PRINT_DEBUG("%s; vendorData[%d]= 0x%x\n", __FUNCTION__, i, vendorData[i]);
+		console_printf("%s; vendorData[%d]= 0x%x\n", __FUNCTION__, i, vendorData[i]);
 	}
 
 	if (nlEventType == DWPAL_NL_EVENT_GET)
@@ -647,30 +639,30 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context,
 	}
 	else
 	{
-		PRINT_ERROR("%s; invalid nlEventType (%d) ==> Abort!\n", __FUNCTION__, nlEventType);
+		console_printf("%s; invalid nlEventType (%d) ==> Abort!\n", __FUNCTION__, nlEventType);
 		return DWPAL_FAILURE;
 	}
 
 	if (localContext == NULL)
 	{
-		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (nlSocket == NULL)
 	{
-		PRINT_ERROR("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	msg = nlmsg_alloc();
 	if (msg == NULL)
 	{
-		PRINT_ERROR("%s; nlmsg_alloc returned NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nlmsg_alloc returned NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	PRINT_DEBUG("%s; nl80211_id= %d\n", __FUNCTION__, localContext->interface.driver.nl80211_id);
+	console_printf("%s; nl80211_id= %d\n", __FUNCTION__, localContext->interface.driver.nl80211_id);
 
 	/* calling genlmsg_put() is a must! without it, the callback won't be called! */
 	genlmsg_put(msg, 0, 0, localContext->interface.driver.nl80211_id, 0,0, nl80211Command /* NL80211_CMD_VENDOR=0x67*/, 0);
@@ -679,7 +671,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context,
 	devidx = if_nametoindex(ifname);
 	if (devidx < 0)
 	{
-		PRINT_ERROR("%s; devidx ERROR (devidx= %lld) ==> Abort!\n", __FUNCTION__, devidx);
+		console_printf("%s; devidx ERROR (devidx= %lld) ==> Abort!\n", __FUNCTION__, devidx);
 		nlmsg_free(msg);
 		return DWPAL_FAILURE;
 	}
@@ -702,14 +694,14 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context,
 			break;
 
 		default:
-			PRINT_ERROR("%s; cmdIdType ERROR (cmdIdType= %d) ==> Abort!\n", __FUNCTION__, cmdIdType);
+			console_printf("%s; cmdIdType ERROR (cmdIdType= %d) ==> Abort!\n", __FUNCTION__, cmdIdType);
 			nlmsg_free(msg);
 			return DWPAL_FAILURE;
 	}
 
 	if (res < 0)
 	{
-		PRINT_ERROR("%s; building message failed ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; building message failed ==> Abort!\n", __FUNCTION__);
 		nlmsg_free(msg);
 		return DWPAL_FAILURE;
 	}
@@ -718,7 +710,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context,
 	//NLA_PUT_U32(msg, NL80211_ATTR_VENDOR_ID, OUI_LTQ /*0xAC9A96*/);
 	if (res < 0)
 	{
-		PRINT_ERROR("%s; building message failed ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; building message failed ==> Abort!\n", __FUNCTION__);
 		nlmsg_free(msg);
 		return DWPAL_FAILURE;
 	}
@@ -727,7 +719,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context,
 	//NLA_PUT_U32(msg, NL80211_ATTR_VENDOR_SUBCMD, subCommand);
 	if (res < 0)
 	{
-		PRINT_ERROR("%s; building message failed ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; building message failed ==> Abort!\n", __FUNCTION__);
 		nlmsg_free(msg);
 		return DWPAL_FAILURE;
 	}
@@ -738,7 +730,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context,
 		res = nla_put(msg, NL80211_ATTR_VENDOR_DATA, (int)vendorDataSize, (void *)vendorData);
 		if (res < 0)
 		{
-			PRINT_ERROR("%s; building message failed ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; building message failed ==> Abort!\n", __FUNCTION__);
 			nlmsg_free(msg);
 			return DWPAL_FAILURE;
 		}
@@ -748,7 +740,7 @@ DWPAL_Ret dwpal_driver_nl_cmd_send(void *context,
 	res = nl_send_auto(nlSocket, msg);  // can use nl_send_auto_complete(nlSocket, msg) instead
 	if (res < 0)
 	{
-		PRINT_ERROR("%s; nl_send_auto returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
+		console_printf("%s; nl_send_auto returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
 		nlmsg_free(msg);
 		return DWPAL_FAILURE;
 	}
@@ -765,18 +757,18 @@ DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_NlEventType nlEventType, 
 	struct nl_cb  *cb;
 	DWPAL_Context *localContext = (DWPAL_Context *)(context);
 
-	PRINT_DEBUG("%s Entry; nlEventType= %d (DWPAL_NL_EVENT_GET=0, DWPAL_NL_CMD_GET=1)\n", __FUNCTION__, nlEventType);
+	console_printf("%s Entry; nlEventType= %d (DWPAL_NL_EVENT_GET=0, DWPAL_NL_CMD_GET=1)\n", __FUNCTION__, nlEventType);
 
 	if (localContext == NULL)
 	{
-		PRINT_ERROR("%s; localContext is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; localContext is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if ( ( (nlEventType == DWPAL_NL_EVENT_GET) && (localContext->interface.driver.nlSocketEvent == NULL) ) ||
 	     ( (nlEventType == DWPAL_NL_CMD_GET) && (localContext->interface.driver.nlSocketCmdGet == NULL) ) )
 	{
-		PRINT_ERROR("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nlSocket is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -785,7 +777,7 @@ DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_NlEventType nlEventType, 
 
 	if (cb == NULL)
 	{
-		PRINT_ERROR("%s; failed to allocate netlink callbacks ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; failed to allocate netlink callbacks ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -812,13 +804,13 @@ DWPAL_Ret dwpal_driver_nl_msg_get(void *context, DWPAL_NlEventType nlEventType, 
 	}
 	else
 	{
-		PRINT_ERROR("%s; invalid nlEventType (%d) ==> Abort!\n", __FUNCTION__, nlEventType);
+		console_printf("%s; invalid nlEventType (%d) ==> Abort!\n", __FUNCTION__, nlEventType);
 		return DWPAL_FAILURE;
 	}
 
 	if (res < 0)
 	{
-		PRINT_ERROR("%s; nl_recvmsgs_default returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
+		console_printf("%s; nl_recvmsgs_default returned ERROR (res= %d) ==> Abort!\n", __FUNCTION__, res);
 		return DWPAL_FAILURE;
 	}
 
@@ -830,21 +822,21 @@ DWPAL_Ret dwpal_driver_nl_fd_get(void *context, int *fd /*OUT*/, int *fdCmdGet /
 {
 	if ( (context == NULL) || (fd == NULL) || (fdCmdGet == NULL) )
 	{
-		PRINT_ERROR("%s; context and/or fd, fdCmdGet is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; context and/or fd, fdCmdGet is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	*fd = ((DWPAL_Context *)context)->interface.driver.fd;
 	if (*fd == (-1))
 	{
-		PRINT_ERROR("%s; fd value is (-1) ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; fd value is (-1) ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	*fdCmdGet = ((DWPAL_Context *)context)->interface.driver.fdCmdGet;
 	if (*fdCmdGet == (-1))
 	{
-		PRINT_ERROR("%s; fdCmdGet value is (-1) ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; fdCmdGet value is (-1) ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -858,20 +850,20 @@ DWPAL_Ret dwpal_driver_nl_detach(void **context /*IN/OUT*/)
 
 	if (context == NULL)
 	{
-		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	localContext = (DWPAL_Context *)(*context);
 	if (localContext == NULL)
 	{
-		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (localContext->interface.driver.nlSocketEvent == NULL)
 	{
-		PRINT_ERROR("%s; nlSocketEvent is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nlSocketEvent is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -897,18 +889,18 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 	int           mcid;
 	DWPAL_Context *localContext;
 
-	PRINT_DEBUG("%s Entry\n", __FUNCTION__);
+	console_printf("%s Entry\n", __FUNCTION__);
 
 	if (context == NULL)
 	{
-		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	*context = malloc(sizeof(DWPAL_Context));
 	if (*context == NULL)
 	{
-		PRINT_ERROR("%s; malloc for context failed ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc for context failed ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -917,7 +909,7 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 	/* Create the NL socket for the events (unsolicited events) */
 	if (nlSocketCreate(&localContext->interface.driver.nlSocketEvent, &localContext->interface.driver.fd) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; nlSocketCreate failed ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nlSocketCreate failed ==> Abort!\n", __FUNCTION__);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
@@ -925,11 +917,11 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 
 	mcid = genl_ctrl_resolve_grp(localContext->interface.driver.nlSocketEvent, "nl80211", "vendor");
 
-	PRINT_DEBUG("%s; mcid= %d\n", __FUNCTION__, mcid);
+	console_printf("%s; mcid= %d\n", __FUNCTION__, mcid);
 
 	if (nl_socket_add_membership(localContext->interface.driver.nlSocketEvent, mcid) < 0)
 	{
-		PRINT_DEBUG("%s; nl_socket_add_membership ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nl_socket_add_membership ERROR ==> Abort!\n", __FUNCTION__);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
@@ -938,7 +930,7 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 	/* Create the NL socket for the 'get commands' (solicited events) */
 	if (nlSocketCreate(&localContext->interface.driver.nlSocketCmdGet, &localContext->interface.driver.fdCmdGet) == DWPAL_FAILURE)
 	{
-		PRINT_ERROR("%s; nlSocketCreate failed ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; nlSocketCreate failed ==> Abort!\n", __FUNCTION__);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
@@ -948,16 +940,16 @@ DWPAL_Ret dwpal_driver_nl_attach(void **context /*OUT*/)
 	localContext->interface.driver.nl80211_id = genl_ctrl_resolve(localContext->interface.driver.nlSocketCmdGet, "nl80211");
 	if (localContext->interface.driver.nl80211_id < 0)
 	{
-		PRINT_ERROR("%s; genl_ctrl_resolve ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; genl_ctrl_resolve ERROR ==> Abort!\n", __FUNCTION__);
 		nl_socket_free(localContext->interface.driver.nlSocketEvent);
 		nl_socket_free(localContext->interface.driver.nlSocketCmdGet);
 		free(*context);
 		*context = NULL;
 		return DWPAL_FAILURE;
 	}
-	PRINT_DEBUG("%s; driver.nl80211_id= %d\n", __FUNCTION__, localContext->interface.driver.nl80211_id);
+	console_printf("%s; driver.nl80211_id= %d\n", __FUNCTION__, localContext->interface.driver.nl80211_id);
 
-	PRINT_DEBUG("%s; driver.nlSocketEvent= 0x%x, fd= %d, driver.nlEventCallback= 0x%x, driver.nl80211_id= %d; nlSocketCmdGet= 0x%x, fdCmdGet= %d\n",
+	console_printf("%s; driver.nlSocketEvent= 0x%x, fd= %d, driver.nlEventCallback= 0x%x, driver.nl80211_id= %d; nlSocketCmdGet= 0x%x, fdCmdGet= %d\n",
 	       __FUNCTION__, (unsigned int)localContext->interface.driver.nlSocketEvent, localContext->interface.driver.fd,
 		   (unsigned int)localContext->interface.driver.nlEventCallback, localContext->interface.driver.nl80211_id,
 		   (unsigned int)localContext->interface.driver.nlSocketCmdGet, localContext->interface.driver.fdCmdGet);
@@ -979,23 +971,23 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 
 	if ( (msg == NULL) || (msgLen == 0) || (fieldsToParse == NULL) )
 	{
-		PRINT_ERROR("%s; input params error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; input params error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if ( (msgStringLen = STRNLEN_S(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH)) > msgLen )
 	{
-		PRINT_ERROR("%s; msgStringLen (%d) is bigger than msgLen (%d) ==> Abort!\n", __FUNCTION__, msgStringLen, msgLen);
+		console_printf("%s; msgStringLen (%d) is bigger than msgLen (%d) ==> Abort!\n", __FUNCTION__, msgStringLen, msgLen);
 		return DWPAL_FAILURE;
 	}
 
-	//PRINT_DEBUG("%s; [0] msgLen= %d\n", __FUNCTION__, msgLen);
+	//console_printf("%s; [0] msgLen= %d\n", __FUNCTION__, msgLen);
 
 	/* Convert msgLen to string length format (without the '\0' character) */
 	msgLen = dmaxLen = msgStringLen;
-	//PRINT_DEBUG("%s; [1] msgLen= %d\n", __FUNCTION__, msgLen);
+	//console_printf("%s; [1] msgLen= %d\n", __FUNCTION__, msgLen);
 
-	//PRINT_DEBUG("%s; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+	//console_printf("%s; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 
 	/* Set values for 'numOfNameArrayArgs' and 'sizeOfStruct' */
 	while (fieldsToParse[i].parsingType != DWPAL_NUM_OF_PARSING_TYPES)
@@ -1014,80 +1006,80 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_STR_PARAM:
 					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].totalSizeOfArg == 0) )
 					{
-						PRINT_ERROR("%s; Error; DWPAL_STR_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; Error; DWPAL_STR_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
 						return DWPAL_FAILURE;
 					}
 
 					sizeOfStruct += sizeof(char) * fieldsToParse[i].totalSizeOfArg;  /* array of characters (string) */
-					//PRINT_DEBUG("%s; DWPAL_STR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_STR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_STR_ARRAY_PARAM:
 					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].totalSizeOfArg == 0) )
 					{
-						PRINT_ERROR("%s; Error; DWPAL_STR_ARRAY_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; Error; DWPAL_STR_ARRAY_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
 						return DWPAL_FAILURE;
 					}
 
 					sizeOfStruct += fieldsToParse[i].totalSizeOfArg;
-					//PRINT_DEBUG("%s; DWPAL_STR_ARRAY_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_STR_ARRAY_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_CHAR_PARAM:
 					sizeOfStruct += sizeof(char);
-					//PRINT_DEBUG("%s; DWPAL_CHAR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_CHAR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_UNSIGNED_CHAR_PARAM:
 					sizeOfStruct += sizeof(unsigned char);
-					//PRINT_DEBUG("%s; DWPAL_UNSIGNED_CHAR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_UNSIGNED_CHAR_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_SHORT_INT_PARAM:
 					sizeOfStruct += sizeof(short int);
-					//PRINT_DEBUG("%s; DWPAL_SHORT_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_SHORT_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_INT_PARAM:
 				case DWPAL_INT_HEX_PARAM:
 					sizeOfStruct += sizeof(int);
-					//PRINT_DEBUG("%s; DWPAL_INT_PARAM/DWPAL_INT_HEX_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_INT_PARAM/DWPAL_INT_HEX_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_UNSIGNED_INT_PARAM:
 					sizeOfStruct += sizeof(unsigned int);
-					//PRINT_DEBUG("%s; DWPAL_UNSIGNED_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_UNSIGNED_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_LONG_LONG_INT_PARAM:
 					sizeOfStruct += sizeof(long long int);
-					//PRINT_DEBUG("%s; DWPAL_LONG_LONG_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_LONG_LONG_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_UNSIGNED_LONG_LONG_INT_PARAM:
 					sizeOfStruct += sizeof(unsigned long long int);
-					//PRINT_DEBUG("%s; DWPAL_UNSIGNED_LONG_LONG_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_UNSIGNED_LONG_LONG_INT_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_INT_ARRAY_PARAM:
 				case DWPAL_INT_HEX_ARRAY_PARAM:
 					if ( (fieldsToParse[i].field != NULL) && (fieldsToParse[i].totalSizeOfArg == 0) )
 					{
-						PRINT_ERROR("%s; Error; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; Error; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM must have positive value for totalSizeOfArg ==> Abort!\n", __FUNCTION__);
 						return DWPAL_FAILURE;
 					}
 
 					sizeOfStruct += sizeof(int) * fieldsToParse[i].totalSizeOfArg;
-					//PRINT_DEBUG("%s; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_INT_ARRAY_PARAM/DWPAL_INT_HEX_ARRAY_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				case DWPAL_BOOL_PARAM:
 					sizeOfStruct += sizeof(bool);
-					//PRINT_DEBUG("%s; DWPAL_BOOL_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
+					//console_printf("%s; DWPAL_BOOL_PARAM; sizeOfStruct= %d\n", __FUNCTION__, sizeOfStruct);
 					break;
 
 				default:
-					PRINT_ERROR("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].parsingType);
+					console_printf("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].parsingType);
 					ret = DWPAL_FAILURE;
 					break;
 			}
@@ -1104,7 +1096,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 		endFieldName = (char **)malloc(sizeof(*endFieldName) * numOfNameArrayArgs);
 		if (endFieldName == NULL)
 		{
-			PRINT_ERROR("%s; malloc endFieldName failed ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; malloc endFieldName failed ==> Abort!\n", __FUNCTION__);
 			ret = DWPAL_FAILURE;
 		}
 		else
@@ -1125,7 +1117,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				endFieldName[idx] =  (char *)malloc(DWPAL_FIELD_NAME_LENGTH);
 				if (endFieldName[idx] == NULL)
 				{
-					PRINT_ERROR("%s; malloc endFieldName[%d] failed ==> Abort!\n", __FUNCTION__, i);
+					console_printf("%s; malloc endFieldName[%d] failed ==> Abort!\n", __FUNCTION__, i);
 					ret = DWPAL_FAILURE;
 					break;
 				}
@@ -1144,7 +1136,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			endFieldName[idx] =  (char *)malloc(DWPAL_FIELD_NAME_LENGTH);
 			if (endFieldName[idx] == NULL)
 			{
-				PRINT_ERROR("%s; malloc endFieldName[%d] failed ==> Abort!\n", __FUNCTION__, idx);
+				console_printf("%s; malloc endFieldName[%d] failed ==> Abort!\n", __FUNCTION__, idx);
 				ret = DWPAL_FAILURE;
 			}
 			else
@@ -1156,22 +1148,22 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 		}
 	}
 
-	//PRINT_DEBUG("%s; [0] msg= '%s'\n", __FUNCTION__, msg);
+	//console_printf("%s; [0] msg= '%s'\n", __FUNCTION__, msg);
 
 	/* In case of a column, convert it to one raw */
 	if ( (ret == DWPAL_SUCCESS) && (isEndFieldNameAllocated) )
 	{
 		if (columnOfParamsToRowConvert(msg, msgLen , endFieldName) == false)
 		{
-			PRINT_ERROR("%s; columnOfParamsToRowConvert error ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; columnOfParamsToRowConvert error ==> Abort!\n", __FUNCTION__);
 			ret = DWPAL_FAILURE;
 		}
 	}
 
-	//PRINT_DEBUG("%s; [1] msg= '%s'\n", __FUNCTION__, msg);
+	//console_printf("%s; [1] msg= '%s'\n", __FUNCTION__, msg);
 
 	/* Perform the actual parsing */
-	//PRINT_DEBUG("%s; [1.1] dmaxLen= %d, p2str= '%s'\n", __FUNCTION__, dmaxLen, p2str);
+	//console_printf("%s; [1.1] dmaxLen= %d, p2str= '%s'\n", __FUNCTION__, dmaxLen, p2str);
 	lineMsg = STRTOK_S(msg, &dmaxLen, "\n", &p2str);
 	localMsg = lineMsg;
 	lineIdx = 0;
@@ -1181,7 +1173,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 		void *field;
 		char *localMsgDup = NULL;
 
-		//PRINT_DEBUG("%s; [2] lineMsg= '%s'\n", __FUNCTION__, lineMsg);
+		//console_printf("%s; [2] lineMsg= '%s'\n", __FUNCTION__, lineMsg);
 
 		i = 0;
 		while ( (fieldsToParse[i].parsingType != DWPAL_NUM_OF_PARSING_TYPES) && (ret == DWPAL_SUCCESS) )
@@ -1194,7 +1186,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			{
 				/* set the output parameter - move it to the next array index (needed when parsing many lines) */
 				field = (void *)((unsigned int)fieldsToParse[i].field + lineIdx * sizeOfStruct);
-				//PRINT_DEBUG("%s; lineIdx= %d, sizeOfStruct= %d, field= 0x%x\n", __FUNCTION__, lineIdx, sizeOfStruct, (unsigned int)field);
+				//console_printf("%s; lineIdx= %d, sizeOfStruct= %d, field= 0x%x\n", __FUNCTION__, lineIdx, sizeOfStruct, (unsigned int)field);
 			}
 
 			switch (fieldsToParse[i].parsingType)
@@ -1207,7 +1199,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 							localMsgDup = strdup(localMsg);
 							if (localMsgDup == NULL)
 							{
-								PRINT_ERROR("%s; localMsgDup is NULL, Failed strdup ==> Abort!\n", __FUNCTION__);
+								console_printf("%s; localMsgDup is NULL, Failed strdup ==> Abort!\n", __FUNCTION__);
 								ret = DWPAL_FAILURE;
 								break;
 							}
@@ -1220,7 +1212,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 						                           (int)fieldsToParse[i].totalSizeOfArg,
 						                           (char *)field /*OUT*/) == false)
 						{
-							PRINT_ERROR("%s; mandatory is NULL ==> Abort!\n", __FUNCTION__);
+							console_printf("%s; mandatory is NULL ==> Abort!\n", __FUNCTION__);
 							ret = DWPAL_FAILURE;  /* mandatory parameter is missing ==> Abort! */
 						}
 						else
@@ -1234,14 +1226,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					{
 						if (isEndFieldNameAllocated == false)
 						{
-							PRINT_ERROR("%s; DWPAL_STR_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+							console_printf("%s; DWPAL_STR_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 							ret = DWPAL_FAILURE;
 							break;
 						}
 
 						if (field == NULL)
 						{
-							PRINT_ERROR("%s; DWPAL_STR_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+							console_printf("%s; DWPAL_STR_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 						}
 						else
 						{
@@ -1255,7 +1247,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 
 								if ((STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1) > fieldsToParse[i].totalSizeOfArg)
 								{
-									PRINT_ERROR("%s; string length (%d) is bigger the allocated string size (%d)\n",
+									console_printf("%s; string length (%d) is bigger the allocated string size (%d)\n",
 												__FUNCTION__, STRNLEN_S(stringOfValues, HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH) + 1, fieldsToParse[i].totalSizeOfArg);
 									ret = DWPAL_FAILURE;  /* longer string then allocated ==> Abort! */
 								}
@@ -1278,14 +1270,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				   "... non_pref_chan=81:200:1:5 81:100:2:9 81:200:1:7 81:100:2:5 ..." */
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_STR_ARRAY_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_STR_ARRAY_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_STR_ARRAY_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_STR_ARRAY_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1294,7 +1286,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 						{
 							if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_STR_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, (char *)field) == false)
 							{
-								PRINT_ERROR("%s; arrayValuesGet ERROR\n", __FUNCTION__);
+								console_printf("%s; arrayValuesGet ERROR\n", __FUNCTION__);
 							}
 						}
 						else
@@ -1312,14 +1304,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_CHAR_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_CHAR_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_CHAR_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_CHAR_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_CHAR_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1356,14 +1348,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_UNSIGNED_CHAR_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_UNSIGNED_CHAR_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_UNSIGNED_CHAR_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_UNSIGNED_CHAR_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_UNSIGNED_CHAR_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1400,14 +1392,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_SHORT_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_SHORT_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_SHORT_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_SHORT_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_SHORT_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1444,14 +1436,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1488,14 +1480,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_UNSIGNED_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_UNSIGNED_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_UNSIGNED_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_UNSIGNED_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_UNSIGNED_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1532,14 +1524,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_LONG_LONG_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_LONG_LONG_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_LONG_LONG_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_LONG_LONG_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_LONG_LONG_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1576,14 +1568,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_UNSIGNED_LONG_LONG_INT_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_UNSIGNED_LONG_LONG_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_UNSIGNED_LONG_LONG_INT_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_UNSIGNED_LONG_LONG_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_UNSIGNED_LONG_LONG_INT_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1620,26 +1612,26 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_INT_ARRAY_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_INT_ARRAY_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_INT_ARRAY_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_INT_ARRAY_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_INT_ARRAY_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
 						memset(stringOfValues, 0, sizeof(stringOfValues));  /* reset the string value array */
 						if (fieldValuesGet(lineMsg, msgLen, fieldsToParse[i].stringToSearch, endFieldName, stringOfValues) == true)
 						{
-							//PRINT_DEBUG("%s; [1] fieldsToParse[%d].numOfValidArgs= %d, stringOfValues= '%s'\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs), stringOfValues);
+							//console_printf("%s; [1] fieldsToParse[%d].numOfValidArgs= %d, stringOfValues= '%s'\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs), stringOfValues);
 							if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_INT_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
 							{
-								PRINT_ERROR("%s; arrayValuesGet ERROR\n", __FUNCTION__);
+								console_printf("%s; arrayValuesGet ERROR\n", __FUNCTION__);
 							}
-							//PRINT_DEBUG("%s; [2] fieldsToParse[%d].numOfValidArgs= %d\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs));
+							//console_printf("%s; [2] fieldsToParse[%d].numOfValidArgs= %d\n", __FUNCTION__, i, *(fieldsToParse[i].numOfValidArgs));
 						}
 						else
 						{
@@ -1651,14 +1643,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_INT_HEX_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_INT_HEX_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_INT_HEX_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_INT_HEX_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_INT_HEX_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1682,14 +1674,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_INT_HEX_ARRAY_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_INT_HEX_ARRAY_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_INT_HEX_ARRAY_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_INT_HEX_ARRAY_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_INT_HEX_ARRAY_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1698,7 +1690,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 						{
 							if (arrayValuesGet(stringOfValues, fieldsToParse[i].totalSizeOfArg, DWPAL_INT_HEX_ARRAY_PARAM, fieldsToParse[i].numOfValidArgs, field) == false)
 							{
-								PRINT_ERROR("%s; arrayValuesGet (stringToSearch= '%s') ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].stringToSearch);
+								console_printf("%s; arrayValuesGet (stringToSearch= '%s') ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].stringToSearch);
 								ret = DWPAL_FAILURE; /* array of string detected, but getting its arguments failed ==> Abort! */
 							}
 						}
@@ -1712,14 +1704,14 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 				case DWPAL_BOOL_PARAM:
 					if (isEndFieldNameAllocated == false)
 					{
-						PRINT_ERROR("%s; DWPAL_BOOL_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
+						console_printf("%s; DWPAL_BOOL_PARAM; isEndFieldNameAllocated=false ==> Abort!\n", __FUNCTION__);
 						ret = DWPAL_FAILURE;
 						break;
 					}
 
 					if (field == NULL)
 					{
-						PRINT_ERROR("%s; DWPAL_BOOL_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
+						console_printf("%s; DWPAL_BOOL_PARAM; fieldsToParse[%d].field=NULL ==> cont...\n", __FUNCTION__, i);
 					}
 					else
 					{
@@ -1741,7 +1733,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 					break;
 
 				default:
-					PRINT_ERROR("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].parsingType);
+					console_printf("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToParse[i].parsingType);
 					ret = DWPAL_FAILURE;
 					break;
 			}
@@ -1791,17 +1783,17 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 
 	if ( (context == NULL) || (cmdHeader == NULL) || (reply == NULL) || (replyLen == NULL) )
 	{
-		PRINT_ERROR("%s; input params error ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; input params error ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if ( ((DWPAL_Context *)context)->interface.hostapd.wpaCtrlPtr == NULL )
 	{
-		PRINT_ERROR("%s; input params error (wpaCtrlPtr = NULL) ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; input params error (wpaCtrlPtr = NULL) ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	//PRINT_DEBUG("%s Entry; VAPName= '%s', cmdHeader= '%s', replyLen= %d\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName, cmdHeader, *replyLen);
+	//console_printf("%s Entry; VAPName= '%s', cmdHeader= '%s', replyLen= %d\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName, cmdHeader, *replyLen);
 
 	snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s", cmdHeader);
 
@@ -1815,7 +1807,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 				switch (fieldsToCmdParse[i].parsingType)
 				{
 					case DWPAL_STR_PARAM:
-						//PRINT_DEBUG("%s; fieldsToCmdParse[%d].field= '%s'\n", __FUNCTION__, i, (char *)fieldsToCmdParse[i].field);
+						//console_printf("%s; fieldsToCmdParse[%d].field= '%s'\n", __FUNCTION__, i, (char *)fieldsToCmdParse[i].field);
 						if (fieldsToCmdParse[i].preParamString == NULL)
 						{
 							snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s %s", cmd, (char *)fieldsToCmdParse[i].field);
@@ -1830,7 +1822,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 						break;
 
 					case DWPAL_INT_PARAM:
-						//PRINT_DEBUG("%s; fieldsToCmdParse[%d].field= %d\n", __FUNCTION__, i, *((int *)fieldsToCmdParse[i].field));
+						//console_printf("%s; fieldsToCmdParse[%d].field= %d\n", __FUNCTION__, i, *((int *)fieldsToCmdParse[i].field));
 						if (fieldsToCmdParse[i].preParamString == NULL)
 						{
 							snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s %d", cmd, *((int *)fieldsToCmdParse[i].field));
@@ -1842,7 +1834,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 						break;
 
 					case DWPAL_UNSIGNED_INT_PARAM:
-						//PRINT_DEBUG("%s; fieldsToCmdParse[%d].field= %u\n", __FUNCTION__, i, *((unsigned int *)fieldsToCmdParse[i].field));
+						//console_printf("%s; fieldsToCmdParse[%d].field= %u\n", __FUNCTION__, i, *((unsigned int *)fieldsToCmdParse[i].field));
 						if (fieldsToCmdParse[i].preParamString == NULL)
 						{
 							snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s %u", cmd, *((unsigned int *)fieldsToCmdParse[i].field));
@@ -1866,7 +1858,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 						break;
 
 					default:
-						PRINT_ERROR("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToCmdParse[i].parsingType);
+						console_printf("%s; (parsingType= %d) ERROR ==> Abort!\n", __FUNCTION__, fieldsToCmdParse[i].parsingType);
 						ret = DWPAL_FAILURE;
 						break;
 				}
@@ -1876,7 +1868,7 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 		}
 	}
 
-	//PRINT_DEBUG("%s; cmd= '%s'\n", __FUNCTION__, cmd);
+	//console_printf("%s; cmd= '%s'\n", __FUNCTION__, cmd);
 
 	memset((void *)reply, '\0', *replyLen);  /* Clear the output buffer */
 
@@ -1888,12 +1880,12 @@ DWPAL_Ret dwpal_hostap_cmd_send(void *context, const char *cmdHeader, FieldsToCm
 						   ((DWPAL_Context *)context)->interface.hostapd.wpaCtrlEventCallback);
 	if (ret < 0)
 	{
-		PRINT_ERROR("%s; wpa_ctrl_request() returned error (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
+		console_printf("%s; wpa_ctrl_request() returned error (ret= %d) ==> Abort!\n", __FUNCTION__, ret);
 		return DWPAL_FAILURE;
 	}
 	reply[*replyLen] = '\0';  /* we need it to clear the "junk" at the end of the string */
 
-	//PRINT_DEBUG("%s; replyLen= %d\nreply=\n%s\n", __FUNCTION__, *replyLen, reply);
+	//console_printf("%s; replyLen= %d\nreply=\n%s\n", __FUNCTION__, *replyLen, reply);
 
 	return ret;
 }
@@ -1909,7 +1901,7 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 
 	if ( (context == NULL) || (msg == NULL) || (msgLen == NULL) || (opCode == NULL) )
 	{
-		PRINT_ERROR("%s; context/msg/msgLen/opCode is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; context/msg/msgLen/opCode is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1919,7 +1911,7 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 
 	if (wpaCtrlPtr == NULL)
 	{
-		PRINT_ERROR("%s; wpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; wpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1928,7 +1920,7 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 	switch (ret)
 	{
 		case -1:  /* error */
-			PRINT_ERROR("%s; wpa_ctrl_pending() returned ERROR ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; wpa_ctrl_pending() returned ERROR ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 			break;
 
@@ -1940,7 +1932,7 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 			break;
 
 		default:
-			PRINT_ERROR("%s; wpa_ctrl_pending() returned unknown (%d) value ==> Abort!\n", __FUNCTION__, ret);
+			console_printf("%s; wpa_ctrl_pending() returned unknown (%d) value ==> Abort!\n", __FUNCTION__, ret);
 			return DWPAL_FAILURE;
 			break;
 	}
@@ -1948,11 +1940,11 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 	/* There are pending messages */
 	if (wpa_ctrl_recv(wpaCtrlPtr, msg, msgLen) == 0)
 	{
-		//PRINT_DEBUG("%s; msgLen= %d\nmsg= '%s'\n", __FUNCTION__, *msgLen, msg);
+		//console_printf("%s; msgLen= %d\nmsg= '%s'\n", __FUNCTION__, *msgLen, msg);
 		msg[*msgLen] = '\0';
 		if (*msgLen <= 5)
 		{
-			PRINT_ERROR("%s; '%s' is NOT a report ==> Abort!\n", __FUNCTION__, msg);
+			console_printf("%s; '%s' is NOT a report ==> Abort!\n", __FUNCTION__, msg);
 			return DWPAL_FAILURE;
 		}
 		else
@@ -1967,7 +1959,7 @@ DWPAL_Ret dwpal_hostap_event_get(void *context, char *msg /*OUT*/, size_t *msgLe
 	}
 	else
 	{
-		PRINT_ERROR("%s; wpa_ctrl_recv() returned ERROR ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; wpa_ctrl_recv() returned ERROR ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1979,7 +1971,7 @@ DWPAL_Ret dwpal_hostap_event_fd_get(void *context, int *fd /*OUT*/)
 {
 	if ( (context == NULL) || (fd == NULL) )
 	{
-		//PRINT_ERROR("%s; context and/or fd is NULL ==> Abort!\n", __FUNCTION__);
+		//console_printf("%s; context and/or fd is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -1987,7 +1979,7 @@ DWPAL_Ret dwpal_hostap_event_fd_get(void *context, int *fd /*OUT*/)
 
 	if (*fd == (-1))
 	{
-		//PRINT_ERROR("%s; fd value is (-1) ==> Abort!\n", __FUNCTION__);
+		//console_printf("%s; fd value is (-1) ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -2001,17 +1993,17 @@ DWPAL_Ret dwpal_hostap_is_interface_exist(void *context, bool *isExist /*OUT*/)
 
 	if ( (context == NULL) || (isExist == NULL) )
 	{
-		PRINT_ERROR("%s; context and/or isExist is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; context and/or isExist is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
-	//PRINT_DEBUG("%s; VAPName= '%s'\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
+	//console_printf("%s; VAPName= '%s'\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 
 	*isExist = false;
 
 	if (((DWPAL_Context *)context)->interface.hostapd.VAPName[0] == '\0')
 	{
-		PRINT_ERROR("%s; invalid radio name ('%s') ==> Abort!\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
+		console_printf("%s; invalid radio name ('%s') ==> Abort!\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		return DWPAL_FAILURE;
 	}
 
@@ -2019,7 +2011,7 @@ DWPAL_Ret dwpal_hostap_is_interface_exist(void *context, bool *isExist /*OUT*/)
 	snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 	if (access(wpaCtrlName, F_OK) == 0)
 	{
-		//PRINT_DEBUG("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
+		//console_printf("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		*isExist = true;
 	}
 	else
@@ -2027,12 +2019,12 @@ DWPAL_Ret dwpal_hostap_is_interface_exist(void *context, bool *isExist /*OUT*/)
 		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		if (access(wpaCtrlName, F_OK) == 0)
 		{
-			//PRINT_DEBUG("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
+			//console_printf("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 			*isExist = true;
 		}
 		else
 		{
-			PRINT_ERROR("%s; radio interface '%s' not present\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
+			console_printf("%s; radio interface '%s' not present\n", __FUNCTION__, ((DWPAL_Context *)context)->interface.hostapd.VAPName);
 		}
 	}
 
@@ -2047,20 +2039,20 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 
 	if (context == NULL)
 	{
-		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	localContext = (DWPAL_Context *)(*context);
 	if (localContext == NULL)
 	{
-		PRINT_ERROR("%s; localContext is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; localContext is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (localContext->interface.hostapd.wpaCtrlPtr == NULL)
 	{
-		PRINT_ERROR("%s; wpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; wpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -2068,7 +2060,7 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 	{  /* Valid wpaCtrlEventCallback states that this is a two-way connection (for both command and events) */
 		if ((ret = wpa_ctrl_detach(localContext->interface.hostapd.wpaCtrlPtr)) != 0)
 		{
-			PRINT_ERROR("%s; wpa_ctrl_detach (VAPName= '%s') returned ERROR (ret= %d) ==> Abort!\n",
+			console_printf("%s; wpa_ctrl_detach (VAPName= '%s') returned ERROR (ret= %d) ==> Abort!\n",
 			            __FUNCTION__, localContext->interface.hostapd.VAPName, ret);
 			return DWPAL_FAILURE;
 		}
@@ -2078,13 +2070,13 @@ DWPAL_Ret dwpal_hostap_interface_detach(void **context /*IN/OUT*/)
 		/* Close & reset 'listenerWpaCtrlPtr' */
 		if (localContext->interface.hostapd.listenerWpaCtrlPtr == NULL)
 		{
-			PRINT_ERROR("%s; listenerWpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
+			console_printf("%s; listenerWpaCtrlPtr= NULL ==> Abort!\n", __FUNCTION__);
 			return DWPAL_FAILURE;
 		}
 
 		if ((ret = wpa_ctrl_detach(localContext->interface.hostapd.listenerWpaCtrlPtr)) != 0)
 		{
-			PRINT_ERROR("%s; wpa_ctrl_detach of listener (VAPName= '%s') returned ERROR (ret= %d) ==> Abort!\n",
+			console_printf("%s; wpa_ctrl_detach of listener (VAPName= '%s') returned ERROR (ret= %d) ==> Abort!\n",
 			            __FUNCTION__, localContext->interface.hostapd.VAPName, ret);
 			return DWPAL_FAILURE;
 		}
@@ -2113,31 +2105,31 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPN
 	DWPAL_Context *localContext;
 	char          wpaCtrlName[DWPAL_WPA_CTRL_STRING_LENGTH];
 
-	//PRINT_DEBUG("%s; VAPName= '%s', wpaCtrlEventCallback= 0x%x\n", __FUNCTION__, VAPName, (unsigned int)wpaCtrlEventCallback);
+	//console_printf("%s; VAPName= '%s', wpaCtrlEventCallback= 0x%x\n", __FUNCTION__, VAPName, (unsigned int)wpaCtrlEventCallback);
 
 	if (context == NULL)
 	{
-		PRINT_ERROR("%s; context is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; context is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	if (VAPName == NULL)
 	{
-		PRINT_ERROR("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
 	/* Temporary due to two-way socket hostapd bug */
 	if (wpaCtrlEventCallback != NULL)
 	{  /* Valid wpaCtrlEventCallback states that this is a two-way connection (for both command and events) */
-		PRINT_ERROR("%s; currently, two-way connection (for '%s') is NOT supported - use one-way connection ==> Abort!\n", __FUNCTION__, VAPName);
+		console_printf("%s; currently, two-way connection (for '%s') is NOT supported - use one-way connection ==> Abort!\n", __FUNCTION__, VAPName);
 		return DWPAL_FAILURE;
 	}
 
 	*context = malloc(sizeof(DWPAL_Context));
 	if (*context == NULL)
 	{
-		PRINT_ERROR("%s; malloc for context failed ==> Abort!\n", __FUNCTION__);
+		console_printf("%s; malloc for context failed ==> Abort!\n", __FUNCTION__);
 		return DWPAL_FAILURE;
 	}
 
@@ -2153,7 +2145,7 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPN
 	snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/hostapd/", localContext->interface.hostapd.VAPName);
 	if (access(wpaCtrlName, F_OK) == 0)
 	{
-		//PRINT_DEBUG("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+		//console_printf("%s; Radio '%s' exists - AP Mode\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 		STRCPY_S(localContext->interface.hostapd.operationMode, 3, "AP");
 		STRCPY_S(localContext->interface.hostapd.wpaCtrlName, STRNLEN_S(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
 	}
@@ -2162,7 +2154,7 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPN
 		snprintf(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH, "%s%s", "/var/run/wpa_supplicant/", localContext->interface.hostapd.VAPName);
 		if (access(wpaCtrlName, F_OK) == 0)
 		{
-			//PRINT_DEBUG("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+			//console_printf("%s; Radio '%s' exists - STA Mode\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			STRCPY_S(localContext->interface.hostapd.operationMode, 4, "STA");
 			STRCPY_S(localContext->interface.hostapd.wpaCtrlName, STRNLEN_S(wpaCtrlName, DWPAL_WPA_CTRL_STRING_LENGTH) + 1, wpaCtrlName);
 		}
@@ -2171,7 +2163,7 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPN
 			localContext->interface.hostapd.operationMode[0] = '\0';
 			localContext->interface.hostapd.wpaCtrlName[0] = '\0';
 
-			//PRINT_ERROR("%s; radio interface '%s' not present ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+			//console_printf("%s; radio interface '%s' not present ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 	}
@@ -2179,20 +2171,20 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPN
 	localContext->interface.hostapd.wpaCtrlPtr = wpa_ctrl_open(localContext->interface.hostapd.wpaCtrlName);
 	if (localContext->interface.hostapd.wpaCtrlPtr == NULL)
 	{
-		PRINT_ERROR("%s; wpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+		console_printf("%s; wpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 		return DWPAL_FAILURE;
 	}
 
 	if (localContext->interface.hostapd.wpaCtrlEventCallback != NULL)
 	{  /* Valid wpaCtrlEventCallback states that this is a two-way connection (for both command and events) */
-		PRINT_DEBUG("%s; set up two-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+		console_printf("%s; set up two-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 
 		/* Reset listenerWpaCtrlPtr which used only in one-way connection */
 		localContext->interface.hostapd.listenerWpaCtrlPtr = NULL;
 
 		if (wpa_ctrl_attach(localContext->interface.hostapd.wpaCtrlPtr) != 0)
 		{
-			PRINT_ERROR("%s; wpa_ctrl_attach for '%s' failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+			console_printf("%s; wpa_ctrl_attach for '%s' failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 
@@ -2201,16 +2193,16 @@ DWPAL_Ret dwpal_hostap_interface_attach(void **context /*OUT*/, const char *VAPN
 	else
 	{  /* wpaCtrlEventCallback is NULL ==> turn on the event listener in an additional socket */
 		localContext->interface.hostapd.listenerWpaCtrlPtr = wpa_ctrl_open(localContext->interface.hostapd.wpaCtrlName);
-		PRINT_DEBUG("%s; set up one-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+		console_printf("%s; set up one-way connection for '%s'\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 		if (localContext->interface.hostapd.listenerWpaCtrlPtr == NULL)
 		{
-			PRINT_ERROR("%s; listenerWpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+			console_printf("%s; listenerWpaCtrlPtr (for interface '%s') is NULL! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 
 		if (wpa_ctrl_attach(localContext->interface.hostapd.listenerWpaCtrlPtr) != 0)
 		{
-			PRINT_ERROR("%s; wpa_ctrl_attach for '%s' listener failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
+			console_printf("%s; wpa_ctrl_attach for '%s' listener failed! ==> Abort!\n", __FUNCTION__, localContext->interface.hostapd.VAPName);
 			return DWPAL_FAILURE;
 		}
 
