@@ -26,6 +26,7 @@
 #endif
 #include "dwpal.h"
 #include "dwpal_ext.h"
+#include "dwpal_log.h"	//Logging
 
 #include <pthread.h>
 
@@ -33,7 +34,22 @@
 #if !defined RSIZE_MAX_STR
 #define RSIZE_MAX_STR 256
 #endif
+
+//Logging Macros
+#ifndef LOG_LEVEL
+unsigned int LOGLEVEL = SYS_LOG_DEBUG + 1;
+#else
+unsigned int LOGLEVEL = LOG_LEVEL + 1;
 #endif
+
+#ifndef LOG_TYPE
+unsigned int LOGTYPE = SYS_LOG_TYPE_CONSOLE | SYS_LOG_TYPE_FILE;
+#else
+unsigned int LOGTYPE = LOG_TYPE;
+#endif
+
+unsigned int LOGPROFILE;
+#endif //END YOCTO
 
 #define NUM_OF_LISTENING_EVENTS 16
 extern int check_stats_cmd(int num_arg,char *cmd[]);

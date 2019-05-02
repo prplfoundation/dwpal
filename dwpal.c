@@ -25,6 +25,7 @@
 #include "safe_str_lib.h"
 #endif
 #include "dwpal.h"
+#include "dwpal_log.h"	//Logging
 
 #define DWPAL_MAX_NUM_OF_ELEMENTS 512
 

@@ -6,7 +6,7 @@
 #include "dwpal.h"
 #include "dwpal_ext.h"
 #include "stats.h"
-
+#include "dwpal_log.h"	//Logging
 
 /* global declaration */
 void *goutData = NULL; // for traversing NL data

@@ -45,15 +45,6 @@
 #define STRNCPY_S(...)      strncpy_s(__VA_ARGS__)
 #endif
 
-#if defined YOCTO_LOGGING
-#include "help_logging.h"
-#define PRINT_DEBUG(...)  LOGF_LOG_DEBUG(__VA_ARGS__)
-#define PRINT_ERROR(...)  LOGF_LOG_ERROR(__VA_ARGS__)
-#else
-#define PRINT_DEBUG(...)  printf(__VA_ARGS__)
-#define PRINT_ERROR(...)  printf(__VA_ARGS__)
-#endif
-
 #define console_printf(...)  \
 {                            \
 	/*printf(__VA_ARGS__)*/ \
