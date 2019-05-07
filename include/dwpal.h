@@ -33,18 +33,6 @@
 #define SOCKET_NAME_LENGTH                     256
 #define COMMAND_ENDED_SOCKET                   "/tmp/dwpal_command_get_ended_socket"
 
-#if defined YOCTO
-#define STRTOK_S(...)       puma_strtok_s(__VA_ARGS__)
-#define STRNLEN_S(...)      puma_strnlen_s(__VA_ARGS__)
-#define STRCPY_S(...)       puma_strcpy_s(__VA_ARGS__)
-#define STRNCPY_S(...)      puma_strncpy_s(__VA_ARGS__)
-#else
-#define STRTOK_S(...)       strtok_s(__VA_ARGS__)
-#define STRNLEN_S(...)      strnlen_s(__VA_ARGS__)
-#define STRCPY_S(...)       strcpy_s(__VA_ARGS__)
-#define STRNCPY_S(...)      strncpy_s(__VA_ARGS__)
-#endif
-
 #define console_printf(...)  \
 {                            \
 	/*printf(__VA_ARGS__)*/ \

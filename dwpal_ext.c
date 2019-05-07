@@ -5,7 +5,6 @@
  *  *****************************************************************************/
 
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -13,7 +12,7 @@
 #include <pthread.h>
 
 #if defined YOCTO
-#include <puma_safe_libc.h>
+#include <slibc/string.h>
 #else
 #include "safe_str_lib.h"
 #endif
@@ -99,8 +98,8 @@ static DWPAL_Ret interfaceIndexCreate(char *interfaceType, char *VAPName, int *i
 				return DWPAL_FAILURE;
 			}
 
-			STRCPY_S(dwpalService[i]->interfaceType, sizeof(dwpalService[i]->interfaceType), interfaceType);
-			STRCPY_S(dwpalService[i]->VAPName, sizeof(dwpalService[i]->VAPName), VAPName);
+			strcpy_s(dwpalService[i]->interfaceType, sizeof(dwpalService[i]->interfaceType), interfaceType);
+			strcpy_s(dwpalService[i]->VAPName, sizeof(dwpalService[i]->VAPName), VAPName);
 
 			*idx = i;
 			return DWPAL_SUCCESS;
@@ -311,7 +310,7 @@ static void *listenerThreadStart(void *temp)
 //strcpy(msg, "<3>AP-STA-DISCONNECTED wlan0 14:d6:4d:ac:36:70");
 //strcpy(opCode, "AP-STA-CONNECTED");
 
-							msgStringLen = STRNLEN_S(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
+							msgStringLen = strnlen_s(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
 							//console_printf("%s; opCode= '%s', msg= '%s'\n", __FUNCTION__, opCode, msg);
 							if (strncmp(opCode, "", 1))
 							{

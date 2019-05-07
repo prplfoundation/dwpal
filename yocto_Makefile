@@ -26,16 +26,12 @@ $(PKG_NAME).so: $(PKG_NAME).so.$(VERSION)
 dwpal_cli: $(DWPAL_CLI_OBJS) $(PKG_NAME).so.$(VERSION) $(PKG_NAME).so
 	$(CC) -o $@ $? $(EXTRALDFLAGS) $(LDFLAGS)
 
-dwpal_band_steering: dwpal_band_steering_app.o $(PKG_NAME).so.$(VERSION) $(PKG_NAME).so
-	$(CC) -o $@ $< $(EXTRALDFLAGS) $(LDFLAGS)
-
 .PHONY: all
-all: $(PKG_NAME).so.$(VERSION) dwpal_cli $(PKG_NAME).so dwpal_band_steering
+all: $(PKG_NAME).so.$(VERSION) dwpal_cli $(PKG_NAME).so
 
 .PHONY: clean
 clean:
 	@rm -f $(LIB_OBJS)
 	@rm -f lib$(NAME).so*
-	@rm -f dwpal_cli.o dwpal_cli dwpal_band_steering_app.o dwpal_band_steering stats.o
+	@rm -f dwpal_cli.o dwpal_cli stats.o
 	@rm -f *.o.d
-

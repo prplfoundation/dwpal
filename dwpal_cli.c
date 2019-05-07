@@ -1,6 +1,6 @@
-/*  ***************************************************************************** 
+/*  *****************************************************************************
  *        File Name    : dwpal_debug_cli.c                             	        *
- *        Description  : test utility in order to test D-WPAL control interface * 
+ *        Description  : test utility in order to test D-WPAL control interface *
  *                                                                              *
  *  *****************************************************************************/
 
@@ -19,11 +19,13 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <sys/select.h>
+
 #if defined YOCTO
-#include <puma_safe_libc.h>
+#include <slibc/string.h>
 #else
 #include "safe_str_lib.h"
 #endif
+
 #include "dwpal.h"
 #include "dwpal_ext.h"
 #include "dwpal_log.h"	//Logging
@@ -408,14 +410,14 @@ static char *dupstr(const char *s)
 {
 	char *r;
 
-	if (!(r = (char *)malloc((size_t)(STRNLEN_S(s, 256) + 1))))
+	if (!(r = (char *)malloc((size_t)(strnlen_s(s, 256) + 1))))
 	{
 		console_printf("Error: Out of memory. Exiting\n");
 		sigterm_handler();
 	}
 	else
 	{
-		STRCPY_S(r, STRNLEN_S(s, RSIZE_MAX_STR) + 1, s);
+		strcpy_s(r, strnlen_s(s, RSIZE_MAX_STR) + 1, s);
 	}
 
 	return (r);
@@ -430,7 +432,7 @@ static char *dwpal_debug_cli_generator(const char *text, int state)
 	if (!state)
 	{
 		list_index = 0;
-		len = STRNLEN_S(text, 256);
+		len = strnlen_s(text, 256);
 	}
 
 	while (strncmp(s_arrDwpalCommands[list_index][0], "__END__", 7))
@@ -528,7 +530,7 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 		}
 
 		isValid = false;
-	
+
 		while (fieldsToParse[i].parsingType != DWPAL_NUM_OF_PARSING_TYPES)
 		{
 			if ( (k > 0) && (k >= *(fieldsToParse[i].numOfValidArgs)) )
@@ -570,12 +572,12 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					for (j=0; j < *(fieldsToParse[i].numOfValidArgs); j++)
 					{
 						char   fieldName[DWPAL_FIELD_NAME_LENGTH];
-						size_t fieldNameLength = STRNLEN_S(fieldsToParse[i].stringToSearch, DWPAL_FIELD_NAME_LENGTH) - 1;
+						size_t fieldNameLength = strnlen_s(fieldsToParse[i].stringToSearch, DWPAL_FIELD_NAME_LENGTH) - 1;
 
 						isValid = true;
 
 						/* Copy the entire name except of the last character (which is "=") */
-						STRNCPY_S(fieldName, sizeof(fieldName), fieldsToParse[i].stringToSearch, fieldNameLength);
+						strncpy_s(fieldName, sizeof(fieldName), fieldsToParse[i].stringToSearch, fieldNameLength);
 						fieldName[fieldNameLength] = '\0';
 
 						console_printf("%s; %s%s[%d]= %s\n", __FUNCTION__, indexToPrint, fieldName, j, (char *)&(((char *)field)[j * HOSTAPD_TO_DWPAL_VALUE_STRING_LENGTH]));
@@ -642,12 +644,12 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					for (j=0; j < *(fieldsToParse[i].numOfValidArgs); j++)
 					{
 						char   fieldName[DWPAL_FIELD_NAME_LENGTH];
-						size_t fieldNameLength = STRNLEN_S(fieldsToParse[i].stringToSearch, DWPAL_FIELD_NAME_LENGTH) - 1;
+						size_t fieldNameLength = strnlen_s(fieldsToParse[i].stringToSearch, DWPAL_FIELD_NAME_LENGTH) - 1;
 
 						isValid = true;
 
 						/* Copy the entire name except of the last character (which is "=") */
-						STRNCPY_S(fieldName, sizeof(fieldName), fieldsToParse[i].stringToSearch, fieldNameLength);
+						strncpy_s(fieldName, sizeof(fieldName), fieldsToParse[i].stringToSearch, fieldNameLength);
 						fieldName[fieldNameLength] = '\0';
 
 						console_printf("%s; %s%s[%d]= %d\n", __FUNCTION__, indexToPrint, fieldName, j, ((int *)field)[j]);
@@ -666,12 +668,12 @@ static bool resultsPrint(FieldsToParse fieldsToParse[], size_t totalSizeOfArg, s
 					for (j=0; j < *(fieldsToParse[i].numOfValidArgs); j++)
 					{
 						char   fieldName[DWPAL_FIELD_NAME_LENGTH];
-						size_t fieldNameLength = STRNLEN_S(fieldsToParse[i].stringToSearch, DWPAL_FIELD_NAME_LENGTH) - 1;
+						size_t fieldNameLength = strnlen_s(fieldsToParse[i].stringToSearch, DWPAL_FIELD_NAME_LENGTH) - 1;
 
 						isValid = true;
 
 						/* Copy the entire name except of the last character (which is "=") */
-						STRNCPY_S(fieldName, sizeof(fieldName), fieldsToParse[i].stringToSearch, fieldNameLength);
+						strncpy_s(fieldName, sizeof(fieldName), fieldsToParse[i].stringToSearch, fieldNameLength);
 						fieldName[fieldNameLength] = '\0';
 
 						console_printf("%s; %s%s[%d]= 0x%x\n", __FUNCTION__, indexToPrint, fieldName, j, ((int *)field)[j]);
@@ -1748,7 +1750,7 @@ static DWPAL_Ret hostapdEventHandle(char *opCode, char *msg, size_t msgLen)
 {
 	//console_printf("%s; opCode= '%s'; msgLen= %d\n", __FUNCTION__, opCode, msgLen);
 
-	if (!strncmp(opCode, "AP-STA-CONNECTED", STRNLEN_S("AP-STA-CONNECTED", DWPAL_GENERAL_STRING_LENGTH)))
+	if (!strncmp(opCode, "AP-STA-CONNECTED", strnlen_s("AP-STA-CONNECTED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_ap_sta_connected_event_parse(msg, msgLen) == DWPAL_FAILURE)
@@ -1757,7 +1759,7 @@ static DWPAL_Ret hostapdEventHandle(char *opCode, char *msg, size_t msgLen)
 			return DWPAL_FAILURE;
 		}
 	}
-	else if (!strncmp(opCode, "AP-STA-DISCONNECTED", STRNLEN_S("AP-STA-DISCONNECTED", DWPAL_GENERAL_STRING_LENGTH)))
+	else if (!strncmp(opCode, "AP-STA-DISCONNECTED", strnlen_s("AP-STA-DISCONNECTED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_ap_sta_disconnected_event_parse(msg, msgLen) == DWPAL_FAILURE)
@@ -1766,7 +1768,7 @@ static DWPAL_Ret hostapdEventHandle(char *opCode, char *msg, size_t msgLen)
 			return DWPAL_FAILURE;
 		}
 	}
-	else if (!strncmp(opCode, "AP-CSA-FINISHED", STRNLEN_S("AP-CSA-FINISHED", DWPAL_GENERAL_STRING_LENGTH)))
+	else if (!strncmp(opCode, "AP-CSA-FINISHED", strnlen_s("AP-CSA-FINISHED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_ap_csa_finished_event_parse(msg, msgLen) == DWPAL_FAILURE)
@@ -1781,7 +1783,7 @@ static DWPAL_Ret hostapdEventHandle(char *opCode, char *msg, size_t msgLen)
 			return DWPAL_FAILURE;
 		}
 	}
-	else if (!strncmp(opCode, "ACS-COMPLETED", STRNLEN_S("ACS-COMPLETED", DWPAL_GENERAL_STRING_LENGTH)))
+	else if (!strncmp(opCode, "ACS-COMPLETED", strnlen_s("ACS-COMPLETED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_csa_completed_event_parse(msg, msgLen) == DWPAL_FAILURE)
@@ -1790,7 +1792,7 @@ static DWPAL_Ret hostapdEventHandle(char *opCode, char *msg, size_t msgLen)
 			return DWPAL_FAILURE;
 		}
 	}
-	else if (!strncmp(opCode, "BSS-TM-RESP", STRNLEN_S("BSS-TM-RESP", DWPAL_GENERAL_STRING_LENGTH)))
+	else if (!strncmp(opCode, "BSS-TM-RESP", strnlen_s("BSS-TM-RESP", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_bss_tm_resp_event_parse(msg, msgLen) == DWPAL_FAILURE)
@@ -1799,7 +1801,7 @@ static DWPAL_Ret hostapdEventHandle(char *opCode, char *msg, size_t msgLen)
 			return DWPAL_FAILURE;
 		}
 	}
-	else if (!strncmp(opCode, "DFS-CAC-COMPLETED", STRNLEN_S("DFS-CAC-COMPLETED", DWPAL_GENERAL_STRING_LENGTH)))
+	else if (!strncmp(opCode, "DFS-CAC-COMPLETED", strnlen_s("DFS-CAC-COMPLETED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_dfs_cac_completed_event_parse(msg, msgLen) == DWPAL_FAILURE)
@@ -1808,7 +1810,7 @@ static DWPAL_Ret hostapdEventHandle(char *opCode, char *msg, size_t msgLen)
 			return DWPAL_FAILURE;
 		}
 	}
-	else if (!strncmp(opCode, "DFS-NOP-FINISHED", STRNLEN_S("DFS-NOP-FINISHED", DWPAL_GENERAL_STRING_LENGTH)))
+	else if (!strncmp(opCode, "DFS-NOP-FINISHED", strnlen_s("DFS-NOP-FINISHED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_dfs_nop_finished_event_parse(msg, msgLen) == DWPAL_FAILURE)
@@ -1817,7 +1819,7 @@ static DWPAL_Ret hostapdEventHandle(char *opCode, char *msg, size_t msgLen)
 			return DWPAL_FAILURE;
 		}
 	}
-	else if (!strncmp(opCode, "RRM-BEACON-REP-RECEIVED", STRNLEN_S("RRM-BEACON-REP-RECEIVED", DWPAL_GENERAL_STRING_LENGTH)))
+	else if (!strncmp(opCode, "RRM-BEACON-REP-RECEIVED", strnlen_s("RRM-BEACON-REP-RECEIVED", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_rrm_beacon_rep_received_event_parse(msg, msgLen) == DWPAL_FAILURE)
@@ -1826,7 +1828,7 @@ static DWPAL_Ret hostapdEventHandle(char *opCode, char *msg, size_t msgLen)
 			return DWPAL_FAILURE;
 		}
 	}
-	else if (!strncmp(opCode, "UNCONNECTED-STA-RSSI", STRNLEN_S("UNCONNECTED-STA-RSSI", DWPAL_GENERAL_STRING_LENGTH)))
+	else if (!strncmp(opCode, "UNCONNECTED-STA-RSSI", strnlen_s("UNCONNECTED-STA-RSSI", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		//console_printf("%s; msg= '%s'\n", __FUNCTION__, msg);
 		if (dwpal_unconnected_sta_rssi_event_parse(msg, msgLen) == DWPAL_FAILURE)
@@ -2003,7 +2005,7 @@ static void *listenerThreadStart(void *temp)
 							}
 #endif
 
-							msgStringLen = STRNLEN_S(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
+							msgStringLen = strnlen_s(msg, HOSTAPD_TO_DWPAL_MSG_LENGTH);
 							//console_printf("%s; opCode= '%s', msg= '%s'\n", __FUNCTION__, opCode, msg);
 							if (strncmp(opCode, "", 1))
 							{
@@ -2167,8 +2169,8 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 	add_history(strLine);
 
-	dmaxLen = (rsize_t)STRNLEN_S(strLine, DWPAL_CLI_LINE_STRING_LENGTH);
-	opCode  = STRTOK_S(strLine, &dmaxLen, " ", &p2str);
+	dmaxLen = (rsize_t)strnlen_s(strLine, DWPAL_CLI_LINE_STRING_LENGTH);
+	opCode  = strtok_s(strLine, &dmaxLen, " ", &p2str);
 
 	if (opCode == NULL)
 	{
@@ -2191,14 +2193,14 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
         return;
     }
 
-	if (!strncmp(opCode, "DWPAL_INIT", STRNLEN_S("DWPAL_INIT", DWPAL_GENERAL_STRING_LENGTH)))
+	if (!strncmp(opCode, "DWPAL_INIT", strnlen_s("DWPAL_INIT", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		/* Format: DWPAL_INIT */
 		console_printf("%s; call dwpal_init()\n", __FUNCTION__);
 		isDwpalExtenderMode = false;
 		dwpal_init();
 	}
-	else if (!strncmp(opCode, "DWPAL_EXT_DRIVER_NL_IF_ATTACH", STRNLEN_S("DWPAL_EXT_DRIVER_NL_IF_ATTACH", DWPAL_GENERAL_STRING_LENGTH)))
+	else if (!strncmp(opCode, "DWPAL_EXT_DRIVER_NL_IF_ATTACH", strnlen_s("DWPAL_EXT_DRIVER_NL_IF_ATTACH", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		/* Format: DWPAL_EXT_DRIVER_NL_IF_ATTACH */
 		if (dwpal_ext_driver_nl_attach(nlCliEventCallback) == DWPAL_FAILURE)
@@ -2210,7 +2212,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 			isDwpalExtenderMode = true;
 		}
 	}
-	else if (!strncmp(opCode, "DWPAL_EXT_DRIVER_NL_IF_DETACH", STRNLEN_S("DWPAL_EXT_DRIVER_NL_IF_DETACH", DWPAL_GENERAL_STRING_LENGTH)))
+	else if (!strncmp(opCode, "DWPAL_EXT_DRIVER_NL_IF_DETACH", strnlen_s("DWPAL_EXT_DRIVER_NL_IF_DETACH", DWPAL_GENERAL_STRING_LENGTH)))
 	{
 		/* Format: DWPAL_EXT_DRIVER_NL_IF_DETACH */
 		if (dwpal_ext_driver_nl_detach() == DWPAL_FAILURE)
@@ -2224,7 +2226,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 	}
 	else
 	{
-		VAPName = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
+		VAPName = strtok_s(NULL, &dmaxLen, " ", &p2str);
 		if (VAPName == NULL)
 		{
 			console_printf("%s; VAPName is NULL ==> Abort!\n", __FUNCTION__);
@@ -2234,7 +2236,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 		if (VAPName != NULL)
 		{
-			if (!strncmp(opCode, "DWPAL_HOSTAP_CMD_SEND", STRNLEN_S("DWPAL_HOSTAP_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH)))
+			if (!strncmp(opCode, "DWPAL_HOSTAP_CMD_SEND", strnlen_s("DWPAL_HOSTAP_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH)))
 			{
 				/* Examples:
 				   DWPAL_HOSTAP_CMD_SEND wlan2 STA_ALLOW d8:fe:e3:3e:bd:14
@@ -2254,51 +2256,51 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					return;
 				}
 
-				hostapCmdOpcode = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
+				hostapCmdOpcode = strtok_s(NULL, &dmaxLen, " ", &p2str);
 				if (hostapCmdOpcode == NULL)
 				{
 					console_printf("%s; hostapCmdOpcode is NULL ==> Abort!\n", __FUNCTION__);
 					return;
 				}
 
-				if (!strncmp(hostapCmdOpcode, "GET_ACS_REPORT", STRNLEN_S("GET_ACS_REPORT", DWPAL_GENERAL_STRING_LENGTH)))
+				if (!strncmp(hostapCmdOpcode, "GET_ACS_REPORT", strnlen_s("GET_ACS_REPORT", DWPAL_GENERAL_STRING_LENGTH)))
 				{
 					if (dwpal_acs_report_handle(context[idx], VAPName, isDwpalExtenderMode) == DWPAL_FAILURE)
 					{
 						console_printf("%s; dwpal_acs_report_get (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
-				else if (!strncmp(hostapCmdOpcode, "GET_RADIO_INFO", STRNLEN_S("GET_RADIO_INFO", DWPAL_GENERAL_STRING_LENGTH)))
+				else if (!strncmp(hostapCmdOpcode, "GET_RADIO_INFO", strnlen_s("GET_RADIO_INFO", DWPAL_GENERAL_STRING_LENGTH)))
 				{
 					if (dwpal_radio_info_handle(context[idx], VAPName, isDwpalExtenderMode) == DWPAL_FAILURE)
 					{
 						console_printf("%s; dwpal_radio_info_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
-				else if (!strncmp(hostapCmdOpcode, "GET_FAILSAFE_CHAN", STRNLEN_S("GET_FAILSAFE_CHAN", DWPAL_GENERAL_STRING_LENGTH)))
+				else if (!strncmp(hostapCmdOpcode, "GET_FAILSAFE_CHAN", strnlen_s("GET_FAILSAFE_CHAN", DWPAL_GENERAL_STRING_LENGTH)))
 				{
 					if (dwpal_get_failsafe_channel_handle(context[idx], VAPName, isDwpalExtenderMode) == DWPAL_FAILURE)
 					{
 						console_printf("%s; dwpal_get_failsafe_channel_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
-				else if (!strncmp(hostapCmdOpcode, "GET_RESTRICTED_CHANNELS", STRNLEN_S("GET_RESTRICTED_CHANNELS", DWPAL_GENERAL_STRING_LENGTH)))
+				else if (!strncmp(hostapCmdOpcode, "GET_RESTRICTED_CHANNELS", strnlen_s("GET_RESTRICTED_CHANNELS", DWPAL_GENERAL_STRING_LENGTH)))
 				{
 					if (dwpal_get_restricted_channels_handle(context[idx], VAPName, isDwpalExtenderMode) == DWPAL_FAILURE)
 					{
 						console_printf("%s; dwpal_get_restricted_channels_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
-				else if (!strncmp(hostapCmdOpcode, "GET_VAP_MEASUREMENTS", STRNLEN_S("GET_VAP_MEASUREMENTS", DWPAL_GENERAL_STRING_LENGTH)))
+				else if (!strncmp(hostapCmdOpcode, "GET_VAP_MEASUREMENTS", strnlen_s("GET_VAP_MEASUREMENTS", DWPAL_GENERAL_STRING_LENGTH)))
 				{
 					if (dwpal_get_vap_measurements_handle(context[idx], VAPName, isDwpalExtenderMode) == DWPAL_FAILURE)
 					{
 						console_printf("%s; dwpal_get_vap_measurements_handle (VAPName= '%s', serviceName= '%s') returned ERROR ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
-				else if (!strncmp(hostapCmdOpcode, "STA_MEASUREMENTS", STRNLEN_S("STA_MEASUREMENTS", DWPAL_GENERAL_STRING_LENGTH)))
+				else if (!strncmp(hostapCmdOpcode, "STA_MEASUREMENTS", strnlen_s("STA_MEASUREMENTS", DWPAL_GENERAL_STRING_LENGTH)))
 				{
-					if ( (field = STRTOK_S(NULL, &dmaxLen, " ", &p2str)) != NULL)
+					if ( (field = strtok_s(NULL, &dmaxLen, " ", &p2str)) != NULL)
 					{
 						if (dwpal_get_sta_measurements_handle(context[idx], VAPName, field, isDwpalExtenderMode) == DWPAL_FAILURE)
 						{
@@ -2310,13 +2312,13 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 						console_printf("%s; dwpal_get_sta_measurements_handle (VAPName= '%s', serviceName= '%s') no MAC Address ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName);
 					}
 				}
-				else if (!strncmp(hostapCmdOpcode, "REQ_BEACON", STRNLEN_S("REQ_BEACON", DWPAL_GENERAL_STRING_LENGTH)))
+				else if (!strncmp(hostapCmdOpcode, "REQ_BEACON", strnlen_s("REQ_BEACON", DWPAL_GENERAL_STRING_LENGTH)))
 				{
 					char *fields[9];
 
 					for (i=0; i < 9; i++)
 					{
-						fields[i] = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
+						fields[i] = strtok_s(NULL, &dmaxLen, " ", &p2str);
 						if (fields[i] == NULL)
 						{
 							console_printf("%s; dwpal_req_beacon_handle (VAPName= '%s', serviceName= '%s') returned ERROR (i= %d) ==> Abort!\n", __FUNCTION__, VAPName, dwpalService[idx].serviceName, i);
@@ -2347,7 +2349,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					{
 						snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s", hostapCmdOpcode);
 
-						while ( (field = STRTOK_S(NULL, &dmaxLen, " ", &p2str)) != NULL )
+						while ( (field = strtok_s(NULL, &dmaxLen, " ", &p2str)) != NULL )
 						{
 							snprintf(cmd, DWPAL_TO_HOSTAPD_MSG_LENGTH, "%s %s", cmd, field);
 						}
@@ -2372,7 +2374,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					}
 				}
 			}
-			else if (!strncmp(opCode, "DWPAL_EXT_HOSTAP_IF_ATTACH", STRNLEN_S("DWPAL_EXT_HOSTAP_IF_ATTACH", DWPAL_GENERAL_STRING_LENGTH)))
+			else if (!strncmp(opCode, "DWPAL_EXT_HOSTAP_IF_ATTACH", strnlen_s("DWPAL_EXT_HOSTAP_IF_ATTACH", DWPAL_GENERAL_STRING_LENGTH)))
 			{
 				/* Format: DWPAL_EXT_HOSTAP_IF_ATTACH */
 				if ((idx = interfaceIndexGet("hostap", VAPName)) == -1)
@@ -2390,7 +2392,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					isDwpalExtenderMode = true;
 				}
 			}
-			else if (!strncmp(opCode, "DWPAL_EXT_HOSTAP_IF_DETACH", STRNLEN_S("DWPAL_EXT_HOSTAP_IF_DETACH", DWPAL_GENERAL_STRING_LENGTH)))
+			else if (!strncmp(opCode, "DWPAL_EXT_HOSTAP_IF_DETACH", strnlen_s("DWPAL_EXT_HOSTAP_IF_DETACH", DWPAL_GENERAL_STRING_LENGTH)))
 			{
 				/* Format: DWPAL_EXT_HOSTAP_IF_DETACH */
 				if ((idx = interfaceIndexGet("hostap", VAPName)) == -1)
@@ -2404,8 +2406,8 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 					console_printf("%s; dwpal_ext_hostap_interface_detach returned ERROR (VAPName= '%s') ==> Abort!\n", __FUNCTION__, VAPName);
 				}
 			}
-			else if ( (!strncmp(opCode, "DWPAL_DRIVER_NL_CMD_SEND", STRNLEN_S("DWPAL_DRIVER_NL_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH))) ||
-			          (!strncmp(opCode, "DWPAL_DRIVER_NL_GET", STRNLEN_S("DWPAL_DRIVER_NL_GET", DWPAL_GENERAL_STRING_LENGTH))) )
+			else if ( (!strncmp(opCode, "DWPAL_DRIVER_NL_CMD_SEND", strnlen_s("DWPAL_DRIVER_NL_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH))) ||
+			          (!strncmp(opCode, "DWPAL_DRIVER_NL_GET", strnlen_s("DWPAL_DRIVER_NL_GET", DWPAL_GENERAL_STRING_LENGTH))) )
 			{
 				/* Examples:
 				   iw wlan2 iwlwav g11hRadarDetect
@@ -2422,7 +2424,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				   DWPAL_DRIVER_NL_CMD_SEND wlan0 67 0 6a 4 0 0 0 1
 				*/
 
-				field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
+				field = strtok_s(NULL, &dmaxLen, " ", &p2str);
 				if (field == NULL)
 				{
 					console_printf("%s; nl80211Command is NULL ==> Abort!\n", __FUNCTION__);
@@ -2430,7 +2432,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				}
 				nl80211Command = (enum nl80211_commands)strtol(field, NULL, 16);
 
-				field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
+				field = strtok_s(NULL, &dmaxLen, " ", &p2str);
 				if (field == NULL)
 				{
 					console_printf("%s; cmdIdType is NULL ==> Abort!\n", __FUNCTION__);
@@ -2438,7 +2440,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				}
 				cmdIdType = (CmdIdType)atoi(field);
 
-				field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
+				field = strtok_s(NULL, &dmaxLen, " ", &p2str);
 				if (field == NULL)
 				{
 					console_printf("%s; subCommand is NULL ==> Abort!\n", __FUNCTION__);
@@ -2446,7 +2448,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 				}
 				subCommand = (enum ltq_nl80211_vendor_subcmds)strtol(field, NULL, 16);
 
-				field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
+				field = strtok_s(NULL, &dmaxLen, " ", &p2str);
 				if (field == NULL)
 				{
 					console_printf("%s; vendorDataSize is NULL ==> cont...\n", __FUNCTION__);
@@ -2462,7 +2464,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 					for (i=0; i < (int)vendorDataSize; i++)
 					{
-						field = STRTOK_S(NULL, &dmaxLen, " ", &p2str);
+						field = strtok_s(NULL, &dmaxLen, " ", &p2str);
 						if (field == NULL)
 						{
 							console_printf("%s; vendorData[%d] is NULL ==> Abort!\n", __FUNCTION__, i);
@@ -2475,7 +2477,7 @@ static void dwpal_debug_cli_readline_callback(char *strLine)
 
 				if (isDwpalExtenderMode)
 				{
-					if (!strncmp(opCode, "DWPAL_DRIVER_NL_CMD_SEND", STRNLEN_S("DWPAL_DRIVER_NL_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH)))
+					if (!strncmp(opCode, "DWPAL_DRIVER_NL_CMD_SEND", strnlen_s("DWPAL_DRIVER_NL_CMD_SEND", DWPAL_GENERAL_STRING_LENGTH)))
 					{
 						if (dwpal_ext_driver_nl_cmd_send(VAPName, nl80211Command, cmdIdType, subCommand, vendorData, vendorDataSize) == DWPAL_FAILURE)
 						{
@@ -2660,8 +2662,8 @@ int main(int argc, char *argv[])
 			switch (option)
 			{
 				case 'i':
-					stringLength = STRNLEN_S(optarg, DWPAL_GENERAL_STRING_LENGTH);
-					STRNCPY_S(interfaceType, sizeof(interfaceType), optarg, stringLength);
+					stringLength = strnlen_s(optarg, DWPAL_GENERAL_STRING_LENGTH);
+					strncpy_s(interfaceType, sizeof(interfaceType), optarg, stringLength);
 					interfaceType[stringLength] = '\0';
 					console_printf("interfaceType= '%s'\n", interfaceType);
 
@@ -2679,8 +2681,8 @@ int main(int argc, char *argv[])
 					break;
 
 				case 'v':
-					stringLength = STRNLEN_S(optarg, DWPAL_VAP_NAME_STRING_LENGTH);
-					STRNCPY_S(oneShotVAPName, sizeof(oneShotVAPName), optarg, stringLength);
+					stringLength = strnlen_s(optarg, DWPAL_VAP_NAME_STRING_LENGTH);
+					strncpy_s(oneShotVAPName, sizeof(oneShotVAPName), optarg, stringLength);
 					oneShotVAPName[stringLength] = '\0';
 					console_printf("oneShotVAPName= '%s'\n", oneShotVAPName);
 
@@ -2701,8 +2703,8 @@ int main(int argc, char *argv[])
 					break;
 
 				case 'c':
-					stringLength = STRNLEN_S(optarg, DWPAL_TO_HOSTAPD_MSG_LENGTH);
-					STRNCPY_S(oneShotCommand, sizeof(oneShotCommand), optarg, stringLength);
+					stringLength = strnlen_s(optarg, DWPAL_TO_HOSTAPD_MSG_LENGTH);
+					strncpy_s(oneShotCommand, sizeof(oneShotCommand), optarg, stringLength);
 					oneShotCommand[stringLength] = '\0';
 					console_printf("oneShotCommand= '%s'\n", oneShotCommand);
 					break;
@@ -2714,16 +2716,16 @@ int main(int argc, char *argv[])
 						break;
 					}
 
-					stringLength = STRNLEN_S(optarg, DWPAL_OPCODE_STRING_LENGTH);
-					STRNCPY_S(opCodeForListener[numOfListeningEvents], sizeof(opCodeForListener[numOfListeningEvents]), optarg, stringLength);
+					stringLength = strnlen_s(optarg, DWPAL_OPCODE_STRING_LENGTH);
+					strncpy_s(opCodeForListener[numOfListeningEvents], sizeof(opCodeForListener[numOfListeningEvents]), optarg, stringLength);
 					opCodeForListener[numOfListeningEvents][stringLength] = '\0';
 					console_printf("opCodeForListener[%d]= '%s'\n", numOfListeningEvents, opCodeForListener[numOfListeningEvents]);
 					numOfListeningEvents++;
 					break;
 
 				case 'd':
-					stringLength = STRNLEN_S(optarg, 512);
-					STRNCPY_S(vendorDataString, sizeof(vendorDataString), optarg, stringLength);
+					stringLength = strnlen_s(optarg, 512);
+					strncpy_s(vendorDataString, sizeof(vendorDataString), optarg, stringLength);
 					vendorDataString[stringLength] = '\0';
 					console_printf("vendorDataString= '%s'\n", vendorDataString);
 
@@ -2731,7 +2733,7 @@ int main(int argc, char *argv[])
 					vendorDataTempString = vendorDataString;
 					dmaxLen = (rsize_t)stringLength;
 					console_printf("dmaxLen= %d\n", dmaxLen);
-					while ( (tempString = STRTOK_S(vendorDataTempString, &dmaxLen, " ", &p2str)) != NULL )
+					while ( (tempString = strtok_s(vendorDataTempString, &dmaxLen, " ", &p2str)) != NULL )
 					{
 						console_printf("tempString[%d]= '%s'\n", arrayIdx, tempString);
 						vendorData[arrayIdx++] = atoi(tempString);
