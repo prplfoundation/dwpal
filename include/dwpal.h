@@ -19,7 +19,7 @@
 #include <signal.h> // added for 'signal'
 #include <stddef.h> // added for 'offsetof'
 
-#define HOSTAPD_TO_DWPAL_MSG_LENGTH            (4096 * 3)
+#define HOSTAPD_TO_DWPAL_MSG_LENGTH            (4096 * 4)
 #define DWPAL_TO_HOSTAPD_MSG_LENGTH            512
 #define DWPAL_CLI_LINE_STRING_LENGTH           4096
 #define DWPAL_INTERFACE_TYPE_STRING_LENGTH     7
