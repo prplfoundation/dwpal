@@ -1,11 +1,3 @@
-/* SPDX-License-Identifier: BSD-2-Clause-Patent
- *
- * Copyright (c) 2016-2019 Intel Corporation
- *
- * This code is subject to the terms of the BSD+Patent license.
- * See LICENSE file for more details.
- */
-
 /*
  * OS specific functions for UNIX/POSIX systems
  * Copyright (c) 2005-2009, Jouni Malinen <j@w1.fi>
