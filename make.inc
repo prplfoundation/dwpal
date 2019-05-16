@@ -1,15 +1,10 @@
-# ******************************************************************************** #
-#       Copyright (c) 2015                                                         #
-#       Lantiq Beteiligungs-GmbH & Co. KG                                          #
-#       Lilienthalstrasse 15, 85579 Neubiberg, Germany                             #
-#       For licensing information, see the file 'LICENSE' in the root folder of    #
-#        this software module.                                                     #
-# *******************************************************************************  #
+# SPDX-License-Identifier: BSD-2-Clause-Patent
+# Copyright (c) 2016-2019 Intel Corporation
+# This code is subject to the terms of the BSD+Patent license.
+# See LICENSE file for more details.
+#
 
-#
 # Makefile addon to compile C Binaries and Libraries
-#
-# Copyright (c) Lantiq 2015 alexander.abraham@lantiq.com
 #
 # Use this in your Makefile by adding 'include make.inc' in the end of file.
 # Syntax:-
