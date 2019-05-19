@@ -1,12 +1,10 @@
-/******************************************************************************
-
-                               Copyright (c) 2012
-                            Lantiq Deutschland GmbH
-
-  For licensing information, see the file 'LICENSE' in the root folder of
-  this software module.
-
-******************************************************************************/
+/* SPDX-License-Identifier: BSD-2-Clause-Patent
+ *
+ * Copyright (c) 2012-2019 Intel Corporation
+ *
+ * This code is subject to the terms of the BSD+Patent license.
+ * See LICENSE file for more details.
+ */
 
 #ifndef _VENDOR_CMDS_H_
 #define _VENDOR_CMDS_H_

@@ -14,6 +14,10 @@ See LICENSE for the current license terms of this component.
 
 Additional components:
 
+The following files have different license, see the files for license specifics:
+include/nl80211_copy.h 
+os_unix.c
+wpa_ctrl.c
 
 D-WPAL is linked with the hostapd wpa control interface, released under the following BSD License:
 

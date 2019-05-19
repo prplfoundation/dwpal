@@ -1,9 +1,10 @@
-/*##################################################################################################
-# "Copyright (c) 2013 Intel Corporation                                                            #
-# DISTRIBUTABLE AS SAMPLE SOURCE SOFTWARE                                                          #
-# This Distributable As Sample Source Software is subject to the terms and conditions              #
-# of the Intel Software License Agreement for the Intel(R) Cable and GW Software Development Kit"  #
-##################################################################################################*/
+/* SPDX-License-Identifier: BSD-2-Clause-Patent
+ *
+ * Copyright (c) 2013-2019 Intel Corporation
+ *
+ * This code is subject to the terms of the BSD+Patent license.
+ * See LICENSE file for more details.
+ */
 
 #ifndef __DWPAL_LOG_H_
 #define __DWPAL_LOG_H_
