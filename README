@@ -4,8 +4,9 @@ Intel D-WPAL
 --------------------------
 
 
-See LICENSE for the current license terms of this component. See below for
-additional license information.
+See LICENSE for the current license terms of this component. D-WPAL also uses
+files from the hostap project (https://w1.fi/hostapd/), its license applies as
+well.
 
 
 Building
@@ -23,58 +24,3 @@ specified with `libnl3_cflags`, `libnl3_libs`, `safec_cflags` and `safec_libs`.
 readline must be present in the standard include paths, or else CFLAGS must be
 set to point to its include directory. hostap sources are expected in
 `../hostap`. Set `hostap_dir` if they are in a different directory.
-
-
-
-
-
-----------------------------------------------------
-
-Additional components:
-
-The following files have different license, see the files for license specifics:
-include/nl80211_copy.h 
-os_unix.c
-wpa_ctrl.c
-
-D-WPAL is linked with the hostapd wpa control interface, released under the following BSD License:
-
-wpa_supplicant and hostapd
---------------------------
-
-Copyright (c) 2002-2019, Jouni Malinen <j@w1.fi> and contributors
-All Rights Reserved.
-
-
-License
--------
-
-This software may be distributed, used, and modified under the terms of
-BSD license:
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-1. Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright
-   notice, this list of conditions and the following disclaimer in the
-   documentation and/or other materials provided with the distribution.
-
-3. Neither the name(s) of the above-listed copyright holder(s) nor the
-   names of its contributors may be used to endorse or promote products
-   derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
