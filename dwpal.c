@@ -19,9 +19,9 @@
 #include <pthread.h>
 
 #include <linux/types.h>
-#include <libnl3/netlink/socket.h>
-#include <libnl3/netlink/genl/genl.h>  /* for "struct nl_msg" */
-#include <libnl3/netlink/genl/ctrl.h>
+#include <netlink/socket.h>
+#include <netlink/genl/genl.h>  /* for "struct nl_msg" */
+#include <netlink/genl/ctrl.h>
 #include <linux/netlink.h>
 
 #include <net/if.h>

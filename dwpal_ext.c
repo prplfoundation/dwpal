@@ -23,6 +23,7 @@
 #include <slibc/string.h>
 #else
 #include "safe_str_lib.h"
+#include "safe_mem_lib.h"
 #endif
 
 #include "dwpal_ext.h"

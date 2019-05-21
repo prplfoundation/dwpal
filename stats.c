@@ -9,12 +9,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-#include <uci.h>
 #include <stdlib.h>
 #include "dwpal.h"
 #include "dwpal_ext.h"
 #include "stats.h"
 #include "dwpal_log.h"	//Logging
+#if defined YOCTO
+#include <slibc/string.h>
+#else
+#include "safe_str_lib.h"
+#endif
 
 /* global declaration */
 void *goutData = NULL; // for traversing NL data
