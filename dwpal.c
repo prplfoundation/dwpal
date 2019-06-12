@@ -1194,7 +1194,7 @@ DWPAL_Ret dwpal_string_to_struct_parse(char *msg, size_t msgLen, FieldsToParse f
 			else
 			{
 				/* set the output parameter - move it to the next array index (needed when parsing many lines) */
-				field = (void *)((unsigned int)fieldsToParse[i].field + lineIdx * sizeOfStruct);
+				field = (void *)((unsigned long)fieldsToParse[i].field + lineIdx * sizeOfStruct);
 				//console_printf("%s; lineIdx= %d, sizeOfStruct= %d, field= 0x%x\n", __FUNCTION__, lineIdx, sizeOfStruct, (unsigned int)field);
 			}
 
